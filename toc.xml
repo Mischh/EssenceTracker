@@ -1,0 +1,4 @@
+<Addon Name="MischhEssenceTracker" Version="1" Author="Mischh X" APIVersion="15" Description="">
+    <Script Name="EssenceEventTracker.lua"/>
+    <Form Name="EssenceEventTracker.xml"/>
+</Addon>

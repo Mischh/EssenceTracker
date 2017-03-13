@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Sprites>
+    <Sprite Name="EssenceTracker_Icon" Cycle="1">
+        <Frame Texture="gem.tga" x0="6" x1="6" x2="6" x3="6" x4="6" x5="32" y0="3" y1="3" y2="3" y3="3" y4="3" y5="29" Stretchy="1" HotspotX="0" HotspotY="0" Duration="1.000" StartColor="white" EndColor="white"/>
+    </Sprite>
+</Sprites>
