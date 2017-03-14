@@ -569,18 +569,10 @@ do
 		end
 	end
 	
-	function EssenceEventTracker:CheckVeteran(bVet)
-		if bVet then
-			return GroupLib.GetInstanceDifficulty() == GroupLib.Difficulty.Veteran --where is the CodeEnum?
-		else
-			return GroupLib.GetInstanceDifficulty() == GroupLib.Difficulty.Normal --where is the CodeEnum?
-		end
-	end
-	
 	function EssenceEventTracker:EssenceInInstance(tMoney, nContentId, nBase)
 		local nRewardType = validCurrencies[tMoney:GetAccountCurrencyType()]
 		local rTbl = self.tContentIds[nContentId] and self.tContentIds[nContentId][nRewardType]
-		if not rTbl or not self:CheckVeteran(rTbl.src.bIsVeteran) then return end
+		if not rTbl then return end
 		
 		if tMoney:GetAccountCurrencyType() ~= rTbl.tReward.monReward:GetAccountCurrencyType() then return end
 		
@@ -607,7 +599,7 @@ do
 	function EssenceEventTracker:EssenceInQueue(tMoney, nContentType, nBase)
 		local nRewardType = validCurrencies[tMoney:GetAccountCurrencyType()]
 		local rTbl = self.tContentIds[46] and self.tContentIds[46][nRewardType] --46 = Random Queue - usually normal dungeon with rewardType 1 (100 purples)
-		if not rTbl or rTbl.src.eMatchType ~= nContentType or not self:CheckVeteran(rTbl.src.bIsVeteran) then return end
+		if not rTbl or rTbl.src.eMatchType ~= nContentType then return end
 		
 		if tMoney:GetAccountCurrencyType() ~= rTbl.tReward.monReward:GetAccountCurrencyType() then return end
 		
