@@ -28,6 +28,14 @@ local ktShortContentTypes = {
 	[5] = "PvP",
 	[6] = "Que",
 }
+local knExtraSortBaseValue = 100
+local keFeaturedSort = {
+	ContentType = 1,
+	TimeRemaining = 2,
+	Multiplier = knExtraSortBaseValue + 0,
+	Color = knExtraSortBaseValue + 1,
+}
+
 local ktMatchTypeNames = {
 	[MatchMakingLib.MatchType.Shiphand] 		= Apollo.GetString("MatchMaker_Shiphands"),
 	[MatchMakingLib.MatchType.Adventure] 		= Apollo.GetString("MatchMaker_Adventures"),
@@ -77,6 +85,13 @@ function EssenceEventTracker:new(o)
 	{
 		--[nContentId] = fTimeEndTime
 	}
+	o.tCustomSortFunctions = {
+		[keFeaturedSort.ContentType] = self.SortByContentType,
+		[keFeaturedSort.TimeRemaining] = self.SortByTimeRemaining,
+		[keFeaturedSort.Multiplier] = self.SortByMultiplier,
+		[keFeaturedSort.Color] = self.SortByColor
+	}
+	o.eSort = keFeaturedSort.ContentType
 
     return o
 end
@@ -104,6 +119,8 @@ function EssenceEventTracker:HookMatchMaker()
 	if not self.addonMatchMaker then return end
 	self:HookBuildFeaturedList()
 	self:HookBuildRewardsList()
+	self:HookHelperCreateFeaturedSort()
+	self:HookGetSortedRewardList()
 end
 
 function EssenceEventTracker:HookBuildFeaturedList()
@@ -128,6 +145,157 @@ function EssenceEventTracker:HookBuildRewardsList()
 	end
 end
 
+function EssenceEventTracker:HookHelperCreateFeaturedSort()
+	local originalHelperCreateFeaturedSort = self.addonMatchMaker.HelperCreateFeaturedSort
+	self.addonMatchMaker.HelperCreateFeaturedSort = function(...)
+		originalHelperCreateFeaturedSort(...)
+		self:AddAdditionalSortOptions()
+	end
+end
+
+function EssenceEventTracker:HookGetSortedRewardList()
+	local originalGetSortedRewardList = self.addonMatchMaker.GetSortedRewardList
+	self.addonMatchMaker.GetSortedRewardList = function(ref, arRewardList, ...)
+		self:UpdateSortType(self.addonMatchMaker.tWndRefs.wndFeaturedSort:GetData())
+		return self:GetSortedRewardList(self.eSort, arRewardList, originalGetSortedRewardList, ref, ...)
+	end
+end
+
+function EssenceEventTracker:AddAdditionalSortOptions()
+	local wndSort = self:GetSortWindow()
+	if not wndSort then return end
+	local wndSortDropdown = wndSort:FindChild("FeaturedFilterDropdown")
+	if not wndSortDropdown then return end
+	local wndSortContainer = wndSortDropdown:FindChild("Container")
+
+	local refXmlDoc = self.addonMatchMaker.xmlDoc
+	local strSortOptionForm = "FeaturedContentFilterBtn"
+
+	local wndSortMultiplier = Apollo.LoadForm(refXmlDoc, strSortOptionForm, wndSortContainer, self.addonMatchMaker)
+	wndSortMultiplier:SetData(keFeaturedSort.Multiplier)
+	wndSortMultiplier:SetText("Multiplier")
+	if wndSort:GetData() == keFeaturedSort.Multiplier then
+		wndSortMultiplier:SetCheck(true)
+	end
+
+	local wndSortColor = Apollo.LoadForm(refXmlDoc, strSortOptionForm, wndSortContainer, self.addonMatchMaker)
+	wndSortColor:SetData(keFeaturedSort.Color)
+	wndSortColor:SetText("Essence Color")
+
+	local sortContainerChildren = wndSortContainer:GetChildren()
+	local nLeft, nTop, nRight = wndSortDropdown:GetOriginalLocation():GetOffsets()
+	local nBottom = nTop + (#sortContainerChildren * wndSortMultiplier:GetHeight()) + 11
+	wndSortDropdown:SetAnchorOffsets(nLeft, nTop, nRight, nBottom)
+	wndSortContainer:ArrangeChildrenVert(Window.CodeEnumArrangeOrigin.LeftOrTop)
+
+	for i = 1, #sortContainerChildren do
+		local sortButton = sortContainerChildren[i]
+		if self.eSort == sortButton:GetData() then
+			wndSort:SetData(sortButton:GetData())
+			wndSort:SetText(sortButton:GetText())
+			sortButton:SetCheck(true)
+		else
+			sortButton:SetCheck(false)
+		end
+	end
+end
+
+function EssenceEventTracker:GetSortWindow()
+	--self.addonMatchMaker.tWndRefs.wndFeaturedSort
+	local wndSort = self.addonMatchMaker
+	wndSort = wndSort and wndSort.tWndRefs
+	wndSort = wndSort and wndSort.wndFeaturedSort
+	return wndSort
+end
+
+function EssenceEventTracker:UpdateSortType(eSort)
+	local old_eSort = self.eSort
+	self.eSort = eSort
+	if eSort ~= old_eSort then
+		self:UpdateAll()
+	end
+end
+
+function EssenceEventTracker:GetSortedRewardList(eSort, arRewardList, funcOrig, ref, ...)
+	if self.tCustomSortFunctions[eSort] then
+		table.sort(arRewardList,
+		function (tData1, tData2)
+				local rTbl1 = self:GetRotationForFeaturedReward(tData1)
+				local rTbl2 = self:GetRotationForFeaturedReward(tData2)
+				return self.tCustomSortFunctions[eSort](self, rTbl1, rTbl2)
+			end
+		)
+	else
+		funcOrig(ref, arRewardList, ...)
+	end
+
+	return arRewardList
+end
+
+function EssenceEventTracker:CompareCompletedStatus(rTbl1, rTbl2)
+	local bIsDone1 = self:IsDone(rTbl1)
+	local bIsDone2 = self:IsDone(rTbl2)
+	if bIsDone1 and not bIsDone2 then return 1 end
+	if not bIsDone1 and bIsDone2 then return -1 end
+	return 0
+end
+
+function EssenceEventTracker:SortByContentType(rTbl1, rTbl2)
+	local nCompare = self:CompareCompletedStatus(rTbl1, rTbl2)
+	if nCompare ~= 0 then return nCompare < 0 end
+	nCompare = self:CompareByContentType(rTbl1, rTbl2)
+	if nCompare ~= 0 then return nCompare < 0 end
+	return self:CompareByMultiplier(rTbl1, rTbl2) > 0
+end
+
+function EssenceEventTracker:SortByTimeRemaining(rTbl1, rTbl2)
+	local nCompare = self:CompareCompletedStatus(rTbl1, rTbl2)
+	if nCompare ~= 0 then return nCompare < 0 end
+	nCompare = self:CompareByTimeRemaining(rTbl1, rTbl2)
+	if nCompare ~= 0 then return nCompare < 0 end
+	return self:CompareByMultiplier(rTbl1, rTbl2) > 0
+end
+
+function EssenceEventTracker:SortByMultiplier(rTbl1, rTbl2)
+	local nCompare = self:CompareCompletedStatus(rTbl1, rTbl2)
+	if nCompare ~= 0 then return nCompare < 0 end
+	nCompare = self:CompareByMultiplier(rTbl1, rTbl2)
+	if nCompare ~= 0 then return nCompare > 0 end
+	return self:CompareByTimeRemaining(rTbl1, rTbl2) < 0
+end
+
+function EssenceEventTracker:SortByColor(rTbl1, rTbl2)
+	local nCompare = self:CompareCompletedStatus(rTbl1, rTbl2)
+	if nCompare ~= 0 then return nCompare < 0 end
+	nCompare = self:CompareByColor(rTbl1, rTbl2)
+	if nCompare ~= 0 then return nCompare < 0 end
+	return self:CompareByMultiplier(rTbl1, rTbl2) > 0
+end
+
+function EssenceEventTracker:CompareByContentType(rTbl1, rTbl2)
+	local nA = rTbl1.src.nContentType or 0
+	local nB = rTbl2.src.nContentType or 0
+	return nA - nB
+end
+
+function EssenceEventTracker:CompareByTimeRemaining(rTbl1, rTbl2)
+	local nA = rTbl1.fEndTime or 0
+	local nB = rTbl2.fEndTime or 0
+	return nA - nB
+end
+
+function EssenceEventTracker:CompareByMultiplier(rTbl1, rTbl2)
+	local nA = rTbl1.tReward and rTbl1.tReward.nMultiplier or 0
+	local nB = rTbl2.tReward and rTbl2.tReward.nMultiplier or 0
+	return nA - nB
+end
+
+function EssenceEventTracker:CompareByColor(rTbl1, rTbl2)
+	local nA = rTbl1.tReward and rTbl1.tReward.monReward and rTbl1.tReward.monReward:GetAccountCurrencyType() or 0
+	local nB = rTbl2.tReward and rTbl2.tReward.monReward and rTbl2.tReward.monReward:GetAccountCurrencyType() or 0
+	return nB - nA
+end
+
 function EssenceEventTracker:PlaceOverlays()
 	local wndFeaturedEntries = self:GetFeaturedEntries()
 	for i = 1, #wndFeaturedEntries do
@@ -149,6 +317,10 @@ end
 
 function EssenceEventTracker:GetRotationForBonusRewardTabEntry(wndFeaturedEntry)
 	local tData = wndFeaturedEntry:FindChild("InfoButton"):GetData()
+	return self:GetRotationForFeaturedReward(tData)
+end
+
+function EssenceEventTracker:GetRotationForFeaturedReward(tData)
 	return self.tContentIds[tData.nContentId][tData.tRewardInfo.nRewardType]
 end
 
@@ -167,6 +339,7 @@ function EssenceEventTracker:OnSave(eType)
 		return {
 			tMinimized = self.tMinimized,
 			bShow = self.bShow,
+			eSort = self.eSort,
 		}
 	elseif eType == GameLib.CodeEnumAddonSaveLevel.Realm then
 		return {
@@ -185,6 +358,10 @@ function EssenceEventTracker:OnRestore(eType, tSavedData)
 
 		if tSavedData.bShow ~= nil then
 			self.bShow = tSavedData.bShow
+		end
+
+		if tSavedData.eSort ~= nil then
+			self.eSort = tSavedData.eSort
 		end
 	elseif eType == GameLib.CodeEnumAddonSaveLevel.Realm then
 		if not tSavedData._version then --_version=1
@@ -311,46 +488,6 @@ function EssenceEventTracker:BuildRotationTable( rot )
 	return redo
 end
 
-do
-	--[[
-		what i want:
-
-		Ready > NotReady
-			V
-		Expeditions > Dungeon > Queues > PvP > WB > Dailies
-			V
-		Purple > Red > Green > Blue
-			V
-		arbetiary differences (nContentId)
-	]]
-	local contentDigit = {[1] = 5, [2] = 1, [3] = 6, [4] = 2, [5] = 3, [6] = 4} --rTbl.src.nContentType = 1-6; Dungeon - Dailies - Expeditions - WB - PVP - Queues
-	local colorDigit = {
-		[AccountItemLib.CodeEnumAccountCurrency.PurpleEssence] = 4,
-		[AccountItemLib.CodeEnumAccountCurrency.RedEssence] = 3,
-		[AccountItemLib.CodeEnumAccountCurrency.GreenEssence] = 2,
-		[AccountItemLib.CodeEnumAccountCurrency.BlueEssence] = 1,
-	}
-	function EssenceEventTracker:Compare_rTbl(rTbl1, rTbl2)
-		local done1, done2 = self:IsDone(rTbl1), self:IsDone(rTbl2)
-		if done1 and not done2 then
-			return false
-		elseif done2 and not done1 then
-			return true
-		end
-
-		local content1, content2 = contentDigit[rTbl1.src.nContentType], contentDigit[rTbl2.src.nContentType]
-		if content1 ~= content2 then
-			return content1 > content2
-		end
-
-		local color1, color2 = colorDigit[rTbl1.tReward.monReward:GetAccountCurrencyType()], colorDigit[rTbl2.tReward.monReward:GetAccountCurrencyType()]
-		if color1 ~= color2 then
-			return color1 > color2
-		end
-		return rTbl1.src.nContentId < rTbl2.src.nContentId
-	end
-end
-
 function EssenceEventTracker:GetTitle(rot)--[[
 nContentType: (1-6)
 	1,3,5 - strWorld
@@ -427,7 +564,7 @@ function EssenceEventTracker:ResizeAll(nCount)
 		else
 			-- Resize quests
 			local nChildHeight = self.wndContainer:ArrangeChildrenVert(Window.CodeEnumArrangeOrigin.LeftOrTop, function(wndA, wndB)
-				return self:Compare_rTbl(wndA:GetData(), wndB:GetData())
+				return self.tCustomSortFunctions[self.eSort](self, wndA:GetData(), wndB:GetData())
 			end)
 
 			local nHeightChange = nChildHeight - self.wndContainer:GetHeight()
