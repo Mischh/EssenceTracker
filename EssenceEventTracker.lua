@@ -6,20 +6,6 @@ local EssenceEventTracker = {}
 local kstrAddon = "EssenceTracker"
 local lstrAddon = "Essence Tracker"
 
-local ktRotationContentTypes = {
-	Dungeon = 1,
-	Dailies = 2,
-	Expedition = 3,
-	WorldBoss = 4,
-	PvP = 5,
-	Queues = 6,
-	[1] = "Dungeon",
-	[2] = "Dailies",
-	[3] = "Expedition",
-	[4] = "WorldBoss",
-	[5] = "PvP",
-	[6] = "Queues",
-}
 local ktShortContentTypes = {
 	[1] = "Dng",
 	[2] = "Day",
@@ -265,12 +251,10 @@ do
 		[AccountItemLib.CodeEnumAccountCurrency.GreenEssence] = 2,
 		[AccountItemLib.CodeEnumAccountCurrency.BlueEssence] = 1,
 	}
-	function EssenceEventTracker:Compare_rTbl(rTbl1, rTbl2)
+	function EssenceEventTracker:Compare_rTbl(rTbl1, rTbl2) --returns rTbl1 < rTbl2
 		local done1, done2 = self:IsDone(rTbl1), self:IsDone(rTbl2)
-		if done1 and not done2 then
-			return false
-		elseif done2 and not done1 then
-			return true
+		if done1 ~= done2 then
+			return done2
 		end
 		
 		local content1, content2 = contentDigit[rTbl1.src.nContentType], contentDigit[rTbl2.src.nContentType]
@@ -386,24 +370,112 @@ function EssenceEventTracker:ResizeAll(nCount)
 	self.nTrackerCounting = nCount
 end
 
-function EssenceEventTracker:IsDone(rTbl)
-	local tRewardEnds = self.tEventsDone[rTbl.src.nContentId]
-	if not tRewardEnds then return false end
+do
+	local canProve = {
+		[12]="PrimeLevelDungeon",[13]="PrimeLevelDungeon",[14]="PrimeLevelDungeon",[15]="PrimeLevelDungeon",[16]="PrimeLevelDungeon",[17]="PrimeLevelDungeon",[45]="PrimeLevelDungeon", --Dungeons
+		[18]="PrimeLevelExpedition",[19]="PrimeLevelExpedition",[20]="PrimeLevelExpedition",[21]="PrimeLevelExpedition",[22]="PrimeLevelExpedition",[23]="PrimeLevelExpedition",[24]="PrimeLevelExpedition",[25]="PrimeLevelExpedition", --Expeditions
+		[38]="Battleground",[39]="Battleground",[40]="Battleground", --BGs
+		[46]="Dungeon",--rndQue
+	}
+	local tMatchMakingEntries = {
+		PrimeLevelDungeon = nil,
+		PrimeLevelExpedition = nil,
+		Battleground = nil,
+		Dungeon = nil,
+	}
 	
-	local tEnd = tRewardEnds[rTbl.tReward.nRewardType]
-	if not tEnd then return false end
-	
-	local fEnd = tEnd.nGameTime
-	if not fEnd then return false end
-	
-	local fNow = GameLib.GetGameTime()
-	if fNow < fEnd then return true end
-	
-	tRewardEnds[rTbl.tReward.nRewardType] = nil
-	if not next(tRewardEnds) then
-		self.tEventsDone[rTbl.src.nContentId] = nil
+	function EssenceEventTracker:IsDone_PrimeLevelDungeon(rTbl, nContentId)
+		tMatchMakingEntries.PrimeLevelDungeon = tMatchMakingEntries.PrimeLevelDungeon or MatchMakingLib.GetMatchMakingEntries(MatchMakingLib.MatchType.PrimeLevelDungeon, true, true)
+		
+		for i, tMatch in ipairs(tMatchMakingEntries.PrimeLevelDungeon) do
+			if tMatch:GetInfo().nRewardRotationContentId == nContentId then
+				for i, reward in ipairs(tMatch:GetRotationRewards().arRewards) do
+					if reward.nRewardType == rTbl.tReward.nRewardType and reward.monReward == rTbl.tReward.monReward then
+						return reward.bAlreadyGranted
+					end
+				end
+			end
+		end
+		return false
 	end
-	return false --we are past the 'target-time'
+	
+	function EssenceEventTracker:IsDone_PrimeLevelExpedition(rTbl, nContentId)
+		tMatchMakingEntries.PrimeLevelExpedition = tMatchMakingEntries.PrimeLevelExpedition or MatchMakingLib.GetMatchMakingEntries(MatchMakingLib.MatchType.PrimeLevelExpedition, true, true)
+		
+		for i, tMatch in ipairs(tMatchMakingEntries.PrimeLevelExpedition) do
+			if tMatch:GetInfo().nRewardRotationContentId == nContentId then
+				for i, reward in ipairs(tMatch:GetRotationRewards().arRewards) do
+					if reward.nRewardType == rTbl.tReward.nRewardType and reward.monReward == rTbl.tReward.monReward then
+						return reward.bAlreadyGranted or false
+					end
+				end
+			end
+		end
+		return false
+	end
+	
+	function EssenceEventTracker:IsDone_Battleground(rTbl, nContentId)
+		tMatchMakingEntries.Battleground = tMatchMakingEntries.Battleground or MatchMakingLib.GetMatchMakingEntries(MatchMakingLib.MatchType.Battleground, false, true)
+		
+		for i, tMatch in ipairs(tMatchMakingEntries.Battleground) do
+			if tMatch:GetInfo().nRewardRotationContentId == nContentId then
+				for i, reward in ipairs(tMatch:GetRotationRewards().arRewards) do
+					if reward.nRewardType == rTbl.tReward.nRewardType and reward.monReward == rTbl.tReward.monReward then
+						return reward.bAlreadyGranted or false
+					end
+				end
+			end
+		end
+		return false
+	end
+	
+	function EssenceEventTracker:IsDone_Dungeon(rTbl, nContentId)
+		tMatchMakingEntries.Dungeon = tMatchMakingEntries.Dungeon or MatchMakingLib.GetMatchMakingEntries(MatchMakingLib.MatchType.Dungeon, false, true)
+		
+		for i, tMatch in ipairs(tMatchMakingEntries.Dungeon) do
+			if tMatch:IsRandom() then
+				for i, reward in ipairs(tMatch:GetRotationRewards().arRewards) do
+					if reward.nRewardType == rTbl.tReward.nRewardType and reward.monReward == rTbl.tReward.monReward then
+						return reward.bAlreadyGranted or false
+					end
+				end
+			end
+		end
+		return false
+	end
+	
+	function EssenceEventTracker:IsDone(rTbl)
+		if rTbl.tReward.nRewardType == 1 and canProve[rTbl.src.nContentId] then
+			if self.tEventsDone[rTbl.src.nContentId] then
+				self.tEventsDone[rTbl.src.nContentId][rTbl.tReward.nRewardType] = nil
+				if not next(self.tEventsDone[rTbl.src.nContentId]) then
+					self.tEventsDone[rTbl.src.nContentId] = nil
+				end
+			end
+			
+			local key = "IsDone_"..canProve[rTbl.src.nContentId]
+			
+			return self[key](self, rTbl, rTbl.src.nContentId), true --true for 'immutable'
+		end
+
+		local tRewardEnds = self.tEventsDone[rTbl.src.nContentId]
+		if not tRewardEnds then return false end
+		
+		local tEnd = tRewardEnds[rTbl.tReward.nRewardType]
+		if not tEnd then return false end
+		
+		local fEnd = tEnd.nGameTime
+		if not fEnd then return false end
+		
+		local fNow = GameLib.GetGameTime()
+		if fNow < fEnd then return true end
+		
+		tRewardEnds[rTbl.tReward.nRewardType] = nil
+		if not next(tRewardEnds) then
+			self.tEventsDone[rTbl.src.nContentId] = nil
+		end
+		return false --we are past the 'target-time'
+	end
 end
 
 function EssenceEventTracker:DrawRotation(idx, rTbl)
@@ -421,7 +493,11 @@ function EssenceEventTracker:DrawRotation(idx, rTbl)
 		wndForm:FindChild("EssenceIcon"):SetTooltip("")
 	end
 	wndForm:FindChild("ControlBackerBtn:TimeText"):SetText(self:HelperTimeString(rTbl.fEndTime-GameLib.GetGameTime()))
-	wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorizeIf(rTbl.strText, kstrRed, self:IsDone(rTbl)))
+	
+	local bIsDone, bImmutable = self:IsDone(rTbl)
+	wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorizeIf(rTbl.strText, kstrRed, bIsDone))
+	wndForm:FindChild("ControlBackerBtn"):SetTooltip(bImmutable and "'Done'-flag recieved from Game. Can't be toggled." or "Double-Click to toggle 'Done'-flag")
+	
 	wndForm:SetData(rTbl)
 end
 
@@ -569,10 +645,20 @@ do
 		end
 	end
 	
+	function EssenceEventTracker:CheckVeteran(bVet)
+		local tInstanceSettingsInfo = GameLib.GetInstanceSettings()
+		print("isVet:",tInstanceSettingsInfo.eWorldDifficulty, bVet)
+		if bVet then
+			return tInstanceSettingsInfo.eWorldDifficulty == GroupLib.Difficulty.Veteran
+		else
+			return tInstanceSettingsInfo.eWorldDifficulty == GroupLib.Difficulty.Normal
+		end
+	end
+	
 	function EssenceEventTracker:EssenceInInstance(tMoney, nContentId, nBase)
 		local nRewardType = validCurrencies[tMoney:GetAccountCurrencyType()]
 		local rTbl = self.tContentIds[nContentId] and self.tContentIds[nContentId][nRewardType]
-		if not rTbl then return end
+		if not rTbl or not self:CheckVeteran(rTbl.src.bIsVeteran) then return end
 		
 		if tMoney:GetAccountCurrencyType() ~= rTbl.tReward.monReward:GetAccountCurrencyType() then return end
 		
@@ -599,7 +685,7 @@ do
 	function EssenceEventTracker:EssenceInQueue(tMoney, nContentType, nBase)
 		local nRewardType = validCurrencies[tMoney:GetAccountCurrencyType()]
 		local rTbl = self.tContentIds[46] and self.tContentIds[46][nRewardType] --46 = Random Queue - usually normal dungeon with rewardType 1 (100 purples)
-		if not rTbl or rTbl.src.eMatchType ~= nContentType then return end
+		if not rTbl or rTbl.src.eMatchType ~= nContentType or not self:CheckVeteran(rTbl.src.bIsVeteran) then return end
 		
 		if tMoney:GetAccountCurrencyType() ~= rTbl.tReward.monReward:GetAccountCurrencyType() then return end
 		
@@ -626,6 +712,9 @@ end
 
 function EssenceEventTracker:MarkAsDone(rTbl, bToggle)
 	local cId, rId = rTbl.src.nContentId, rTbl.tReward.nRewardType
+	
+	local _, bImmutable = self:IsDone(rTbl)
+	if bImmutable then return end
 	
 	if bToggle then
 		if not self.tEventsDone[cId] or not self.tEventsDone[cId][rId] then
