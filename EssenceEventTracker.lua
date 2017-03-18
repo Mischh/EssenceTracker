@@ -222,6 +222,9 @@ function EssenceEventTracker:GetSortedRewardList(eSort, arRewardList, funcOrig, 
 		function (tData1, tData2)
 				local rTbl1 = self:GetRotationForFeaturedReward(tData1)
 				local rTbl2 = self:GetRotationForFeaturedReward(tData2)
+				if not rTbl1 or not rTbl2 then
+					return 0
+				end
 				return self.tCustomSortFunctions[eSort](self, rTbl1, rTbl2)
 			end
 		)
@@ -301,7 +304,9 @@ function EssenceEventTracker:PlaceOverlays()
 	for i = 1, #wndFeaturedEntries do
 		local wndFeaturedEntry = wndFeaturedEntries[i]
 		local rTbl = self:GetRotationForBonusRewardTabEntry(wndFeaturedEntry)
-		self:BuildOverlay(wndFeaturedEntry, rTbl)
+		if rTbl then
+			self:BuildOverlay(wndFeaturedEntry, rTbl)
+		end
 	end
 end
 
@@ -321,7 +326,10 @@ function EssenceEventTracker:GetRotationForBonusRewardTabEntry(wndFeaturedEntry)
 end
 
 function EssenceEventTracker:GetRotationForFeaturedReward(tData)
-	return self.tContentIds[tData.nContentId][tData.tRewardInfo.nRewardType]
+	local rTbl = self.tContentIds
+	rTbl = rTbl and rTbl[tData.nContentId]
+	rTbl = rTbl and rTbl[tData.tRewardInfo.nRewardType] or nil
+	return rTbl
 end
 
 function EssenceEventTracker:BuildOverlay(wndFeaturedEntry, rTbl)
