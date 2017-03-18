@@ -65,7 +65,7 @@ function EssenceEventTracker:new(o)
 	o.bSetup = false
 	o.tRotations = {}
 	o.tContentIds = {}
-	
+
 	-- Saved data
 	o.bShow = true
 	o.tMinimized =
@@ -86,15 +86,80 @@ function EssenceEventTracker:Init()
 end
 
 function EssenceEventTracker:OnLoad()
+	self.bIsLoaded = false
 	self.xmlDoc = XmlDoc.CreateFromFile("EssenceEventTracker.xml")
 	self.xmlDoc:RegisterCallback("OnDocumentReady", self)
 	Apollo.LoadSprites("EssenceTrackerSprites.xml")
-	
+
 	self.timerUpdateDelay = ApolloTimer.Create(0.1, false, "UpdateAll", self)
 	self.timerUpdateDelay:Stop()
-	
+
 	self.timerRealTimeUpdate = ApolloTimer.Create(1.0, true, "RedrawTimers", self)
 	self.timerRealTimeUpdate:Stop()
+	self:HookMatchMaker()
+end
+
+function EssenceEventTracker:HookMatchMaker()
+	self.addonMatchMaker = Apollo.GetAddon("MatchMaker")
+	if not self.addonMatchMaker then return end
+	self:HookBuildFeaturedList()
+	self:HookBuildRewardsList()
+end
+
+function EssenceEventTracker:HookBuildFeaturedList()
+	local originalBuildFeaturedList = self.addonMatchMaker.BuildFeaturedList
+	self.addonMatchMaker.BuildFeaturedList = function(...)
+		originalBuildFeaturedList(...)
+		if self.bIsLoaded then
+			self:PlaceOverlays()
+		end
+	end
+end
+
+function EssenceEventTracker:HookBuildRewardsList()
+	local originalBuildRewardsList = self.addonMatchMaker.BuildRewardsList
+	-- Add missing nContentId to bonus tab data
+	self.addonMatchMaker.BuildRewardsList = function (ref, tRewardRotation, ...)
+		local arRewardList = originalBuildRewardsList(ref, tRewardRotation, ...)
+		for i=1, #arRewardList do
+			arRewardList[i].nContentId = tRewardRotation.nContentId
+		end
+		return arRewardList
+	end
+end
+
+function EssenceEventTracker:PlaceOverlays()
+	local wndFeaturedEntries = self:GetFeaturedEntries()
+	for i = 1, #wndFeaturedEntries do
+		local wndFeaturedEntry = wndFeaturedEntries[i]
+		local rTbl = self:GetRotationForBonusRewardTabEntry(wndFeaturedEntry)
+		self:BuildOverlay(wndFeaturedEntry, rTbl)
+	end
+end
+
+function EssenceEventTracker:GetFeaturedEntries()
+  --self.addonMatchMaker.tWndRefs.wndMain:FindChild("TabContent:RewardContent"):GetChildren()
+  local wndFeaturedEntries = self.addonMatchMaker
+  wndFeaturedEntries = wndFeaturedEntries and wndFeaturedEntries.tWndRefs
+  wndFeaturedEntries = wndFeaturedEntries and wndFeaturedEntries.wndMain
+  wndFeaturedEntries = wndFeaturedEntries and wndFeaturedEntries:FindChild("TabContent:RewardContent")
+  wndFeaturedEntries = wndFeaturedEntries and wndFeaturedEntries:GetChildren() or {}
+  return wndFeaturedEntries
+end
+
+function EssenceEventTracker:GetRotationForBonusRewardTabEntry(wndFeaturedEntry)
+	local tData = wndFeaturedEntry:FindChild("InfoButton"):GetData()
+	return self.tContentIds[tData.nContentId][tData.tRewardInfo.nRewardType]
+end
+
+function EssenceEventTracker:BuildOverlay(wndFeaturedEntry, rTbl)
+  local overlay = Apollo.LoadForm(self.xmlDoc, "Overlay", wndFeaturedEntry, self)
+  overlay:FindChild("Completed"):SetData(rTbl)
+  if self:IsDone(rTbl) then
+		overlay:FindChild("Completed"):SetCheck(true)
+  else
+		overlay:FindChild("Shader"):Show(false)
+  end
 end
 
 function EssenceEventTracker:OnSave(eType)
@@ -117,7 +182,7 @@ function EssenceEventTracker:OnRestore(eType, tSavedData)
 		if tSavedData.tMinimized ~= nil then
 			self.tMinimized = tSavedData.tMinimized
 		end
-		
+
 		if tSavedData.bShow ~= nil then
 			self.bShow = tSavedData.bShow
 		end
@@ -126,7 +191,7 @@ function EssenceEventTracker:OnRestore(eType, tSavedData)
 			local fNow = GameLib.GetGameTime()
 			local tNow = GameLib.GetServerTime()
 			local offset = self:CompareDateTables(tSavedData.tDate, tNow)
-			
+
 			self.tEventsDone = {}
 			for i, tRewardEnds in pairs(tSavedData.tEventsDone) do
 				self.tEventsDone[i] = {}
@@ -137,7 +202,7 @@ function EssenceEventTracker:OnRestore(eType, tSavedData)
 		elseif tSavedData._version == 2 then
 			local fNow = GameLib.GetGameTime()
 			local tNow = GameLib.GetServerTime()
-			
+
 			self.tEventsDone = {}
 			for i, tRewardEnds in pairs(tSavedData.tEventsDone) do
 				self.tEventsDone[i] = {}
@@ -154,27 +219,27 @@ function EssenceEventTracker:OnDocumentReady()
 		Apollo.AddAddonErrorText(self, "Could not load the main window document for some reason.")
 		return
 	end
-	
 	Apollo.RegisterEventHandler("ChannelUpdate_Loot", "OnItemGained", self)
-	
+
 	Apollo.RegisterEventHandler("ObjectiveTrackerLoaded", "OnObjectiveTrackerLoaded", self)
 	Event_FireGenericEvent("ObjectiveTracker_RequestParent")
+	self.bIsLoaded = true
 end
 
 function EssenceEventTracker:OnObjectiveTrackerLoaded(wndForm)
 	if not wndForm or not wndForm:IsValid() then
 		return
 	end
-	
+
 	Apollo.RemoveEventHandler("ObjectiveTrackerLoaded", self)
-	
+
 	Apollo.RegisterEventHandler("QuestInit", "OnQuestInit", self)
 	Apollo.RegisterEventHandler("PlayerLevelChange", "OnPlayerLevelChange", self)
 	Apollo.RegisterEventHandler("CharacterCreated", "OnCharacterCreated", self)
-	
+
 	self.wndMain = Apollo.LoadForm(self.xmlDoc, "ContentGroupItem", wndForm, self)
 	self.wndContainer = self.wndMain:FindChild("EpisodeGroupContainer")
-	
+
 	self:Setup()
 end
 
@@ -184,30 +249,30 @@ function EssenceEventTracker:Setup()
 		self.wndMain:Show(false)
 		return
 	end
-	
+
 	if self.bSetup then
 		return
 	end
 	Apollo.RegisterEventHandler("ToggleShowEssenceTracker", "ToggleShowEssenceTracker", self)
-	
+
 	local tContractData =
 	{
 		["strAddon"] = lstrAddon,
-		["strEventMouseLeft"] = "ToggleShowEssenceTracker", 
-		["strEventMouseRight"] = "", 
+		["strEventMouseLeft"] = "ToggleShowEssenceTracker",
+		["strEventMouseRight"] = "",
 		["strIcon"] = "EssenceTracker_Icon",
 		["strDefaultSort"] = kstrAddon,
 	}
 	Event_FireGenericEvent("ObjectiveTracker_NewAddOn", tContractData)
-	
+
 	self:UpdateAll()
-	
+
 	self.bSetup = true
 end
 
 function EssenceEventTracker:ToggleShowEssenceTracker()
 	self.bShow = not self.bShow
-	
+
 	self:UpdateAll()
 end
 
@@ -247,9 +312,9 @@ function EssenceEventTracker:BuildRotationTable( rot )
 end
 
 do
-	--[[	
+	--[[
 		what i want:
-		
+
 		Ready > NotReady
 			V
 		Expeditions > Dungeon > Queues > PvP > WB > Dailies
@@ -272,12 +337,12 @@ do
 		elseif done2 and not done1 then
 			return true
 		end
-		
+
 		local content1, content2 = contentDigit[rTbl1.src.nContentType], contentDigit[rTbl2.src.nContentType]
 		if content1 ~= content2 then
 			return content1 > content2
 		end
-		
+
 		local color1, color2 = colorDigit[rTbl1.tReward.monReward:GetAccountCurrencyType()], colorDigit[rTbl2.tReward.monReward:GetAccountCurrencyType()]
 		if color1 ~= color2 then
 			return color1 > color2
@@ -312,9 +377,9 @@ function EssenceEventTracker:UpdateAll()
 	for idx, nContentType in pairs(GameLib.CodeEnumRewardRotationContentType) do
 		GameLib.RequestRewardUpdate(nContentType)
 	end
-	
+
 	local redo = false --do we need to :UpdateAll() again, because nSecondsLeft <= 0
-	
+
 	local arRewardRotations = GameLib.GetRewardRotations()
 	for _, rotation in ipairs(arRewardRotations) do
 		if self:IsInterestingRotation(rotation) then --filter all (only) 1x Multiplicators, aka. all thats 'default'
@@ -323,52 +388,58 @@ function EssenceEventTracker:UpdateAll()
 			end
 		end
 	end
-	
+
 	if redo or #self.tRotations == 0 then
 		self.updateTimer = self.updateTimer or ApolloTimer.Create(0, false, "UpdateAll", self)
 		self.updateTimer:Start()
 	else
 		self.updateTimer = nil
 	end
-	
+
 	self:ResizeAll(#self.tRotations)
+end
+
+function EssenceEventTracker:UpdateFeaturedList()
+	if next(self:GetFeaturedEntries{}) ~= nil then
+		self.addonMatchMaker:BuildFeaturedList()
+	end
 end
 
 function EssenceEventTracker:ResizeAll(nCount)
 	local nStartingHeight = self.wndMain:GetHeight()
 	local bStartingShown = self.wndMain:IsShown()
-	
+
 	for i, rTbl in ipairs(self.tRotations) do
 		self:DrawRotation(i, rTbl)
 	end
-	
+
 	local tChildren = self.wndContainer:GetChildren()
 	for i = nCount+1, #tChildren, 1 do
 		tChildren[i]:Destroy()
 	end
-	
+
 	if self.bShow then
 		if self.tMinimized.bRoot then
 			self.wndContainer:Show(false)
-			
+
 			local nLeft, nTop, nRight, nBottom = self.wndMain:GetOriginalLocation():GetOffsets()
 			self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, nBottom)
 		else
-			-- Resize quests			
+			-- Resize quests
 			local nChildHeight = self.wndContainer:ArrangeChildrenVert(Window.CodeEnumArrangeOrigin.LeftOrTop, function(wndA, wndB)
-				return self:Compare_rTbl(wndA:GetData(), wndB:GetData()) 
+				return self:Compare_rTbl(wndA:GetData(), wndB:GetData())
 			end)
-			
+
 			local nHeightChange = nChildHeight - self.wndContainer:GetHeight()
 			self.wndContainer:Show(true)
-			
+
 			local nLeft, nTop, nRight, nBottom = self.wndMain:GetAnchorOffsets()
 			self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, nBottom + nHeightChange)
 		end
 	end
 	local bShow = self.bShow and nCount > 0
 	self.wndMain:Show(bShow)
-	
+
 	if nStartingHeight ~= self.wndMain:GetHeight() or self.nTrackerCounting ~= nCount or bShow ~= bStartingShown then
 		local tData =
 		{
@@ -378,27 +449,27 @@ function EssenceEventTracker:ResizeAll(nCount)
 		}
 		Event_FireGenericEvent("ObjectiveTracker_UpdateAddOn", tData)
 	end
-	
+
 	if self.bShow and not self.tMinimized.bRoot then
 		self.timerRealTimeUpdate:Start()
 	end
-	
+
 	self.nTrackerCounting = nCount
 end
 
 function EssenceEventTracker:IsDone(rTbl)
 	local tRewardEnds = self.tEventsDone[rTbl.src.nContentId]
 	if not tRewardEnds then return false end
-	
+
 	local tEnd = tRewardEnds[rTbl.tReward.nRewardType]
 	if not tEnd then return false end
-	
+
 	local fEnd = tEnd.nGameTime
 	if not fEnd then return false end
-	
+
 	local fNow = GameLib.GetGameTime()
 	if fNow < fEnd then return true end
-	
+
 	tRewardEnds[rTbl.tReward.nRewardType] = nil
 	if not next(tRewardEnds) then
 		self.tEventsDone[rTbl.src.nContentId] = nil
@@ -472,7 +543,7 @@ do
 			end
 		end
 	end
-	
+
 	instances = {
 		[13] = {--"Stormtalon's Lair",
 			parentZoneId = nil,	id = 19,	nContentId = 12,	nContentType = 1,	nBase = 65,
@@ -533,16 +604,16 @@ do
 	}
 
 	function EssenceEventTracker:GainedEssence(tMoney)
-		if GroupLib.InInstance() then--Expedition? Dungeon? (Queued Normal Dungeon?)			
+		if GroupLib.InInstance() then--Expedition? Dungeon? (Queued Normal Dungeon?)
 			local zone = GameLib.GetCurrentZoneMap()
 			if not instances[zone.continentId] then return end
-			
+
 			local inst;
 			if #instances[zone.continentId] > 0 then
 				for _, instance in ipairs(instances[zone.continentId]) do
 					if (not instance.parentZoneId or instance.parentZoneId==zone.parentZoneId) and (not instance.id or instance.id==zone.id) then
 						inst = instance
-						break; 
+						break;
 					end
 				end
 			else
@@ -552,14 +623,14 @@ do
 				end
 			end
 			if not inst then return end
-			
-			
+
+
 			--we ARE in inst! Pass to other function, because we only wanna detect in this function
 			self:EssenceInInstance(tMoney, inst.nContentId, inst.nBase)
 			self:EssenceInQueue(tMoney, inst.nContentType, inst.nBase)
 		end
 	end
-	
+
 	local function closeEnough(approx, exact)
 		print("approx:", approx, exact)
 		if approx*1.05 > exact and approx*0.95 < exact then
@@ -568,18 +639,18 @@ do
 			return false
 		end
 	end
-	
+
 	function EssenceEventTracker:EssenceInInstance(tMoney, nContentId, nBase)
 		local nRewardType = validCurrencies[tMoney:GetAccountCurrencyType()]
 		local rTbl = self.tContentIds[nContentId] and self.tContentIds[nContentId][nRewardType]
 		if not rTbl then return end
-		
+
 		if tMoney:GetAccountCurrencyType() ~= rTbl.tReward.monReward:GetAccountCurrencyType() then return end
-		
+
 		if nRewardType == 1 then --no multiplicator (purple essences)
 			local fSignature = AccountItemLib.GetPremiumTier() > 0 and 1.5 or 1
 			local approx = rTbl.tReward.monReward:GetAmount() * fSignature
-			
+
 			if closeEnough(approx, tMoney:GetAmount()) then
 				self:MarkAsDone(rTbl)
 			end
@@ -587,7 +658,7 @@ do
 			local nMultiplier = rTbl.tReward.nMultiplier
 			local fPrime = 1+0.1*GameLib.GetWorldPrimeLevel()
 			local fSignature = AccountItemLib.GetPremiumTier() > 0 and 1.5 or 1
-			
+
 			local approx = nBase * nMultiplier * fPrime * fSignature
 
 			if closeEnough(approx, tMoney:GetAmount()) or closeEnough(2*approx, tMoney:GetAmount()) then -- last event grants double points
@@ -595,18 +666,18 @@ do
 			end
 		end
 	end
-	
+
 	function EssenceEventTracker:EssenceInQueue(tMoney, nContentType, nBase)
 		local nRewardType = validCurrencies[tMoney:GetAccountCurrencyType()]
 		local rTbl = self.tContentIds[46] and self.tContentIds[46][nRewardType] --46 = Random Queue - usually normal dungeon with rewardType 1 (100 purples)
 		if not rTbl or rTbl.src.eMatchType ~= nContentType then return end
-		
+
 		if tMoney:GetAccountCurrencyType() ~= rTbl.tReward.monReward:GetAccountCurrencyType() then return end
-		
+
 		if nRewardType == 1 then --no multiplicator (purple essences)
 			local fSignature = AccountItemLib.GetPremiumTier() > 0 and 1.5 or 1
 			local approx = rTbl.tReward.monReward:GetAmount()
-			
+
 			if closeEnough(approx, tMoney:GetAmount()) then
 				self:MarkAsDone(rTbl)
 			end
@@ -614,7 +685,7 @@ do
 			local nMultiplier = rTbl.tReward.nMultiplier
 			local fPrime = 1+0.1*GameLib.GetWorldPrimeLevel()
 			local fSignature = AccountItemLib.GetPremiumTier() > 0 and 1.5 or 1
-			
+
 			local approx = nBase * nMultiplier * fPrime * fSignature
 
 			if closeEnough(approx, tMoney:GetAmount()) or closeEnough(2*approx, tMoney:GetAmount()) then -- last event grants double points
@@ -626,7 +697,7 @@ end
 
 function EssenceEventTracker:MarkAsDone(rTbl, bToggle)
 	local cId, rId = rTbl.src.nContentId, rTbl.tReward.nRewardType
-	
+
 	if bToggle then
 		if not self.tEventsDone[cId] or not self.tEventsDone[cId][rId] then
 			self.tEventsDone[cId] = self.tEventsDone[cId] or {}
@@ -641,8 +712,9 @@ function EssenceEventTracker:MarkAsDone(rTbl, bToggle)
 		self.tEventsDone[cId] = self.tEventsDone[cId] or {}
 		self.tEventsDone[cId][rId] = self:BuildDateTable(rTbl.fEndTime-10)
 	end
-	
+
 	self:UpdateAll()
+	self:UpdateFeaturedList()
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -683,6 +755,18 @@ function EssenceEventTracker:OnEssenceItemClick(wndHandler, wndControl, eMouseBu
 	self:UpdateAll()
 end
 
+function EssenceEventTracker:OnRewardTabCompletedCheck(wndHandler, wndControl)
+	wndControl:GetParent():FindChild("Shader"):Show(true)
+	local rTbl = wndHandler:GetData()
+	self:MarkAsDone(rTbl, true)
+end
+
+function EssenceEventTracker:OnRewardTabCompletedUncheck(wndHandler, wndControl)
+	wndControl:GetParent():FindChild("Shader"):Show(false)
+	local rTbl = wndHandler:GetData()
+	self:MarkAsDone(rTbl, true)
+end
+
 ---------------------------------------------------------------------------------------------------
 -- Helpers
 ---------------------------------------------------------------------------------------------------
@@ -696,9 +780,9 @@ function EssenceEventTracker:HelperTimeString(fTime, strColorOverride)
 	if strColorOverride then
 		strColor = strColorOverride
 	end
-	
+
 	local strTime;
-	
+
 	if fDays >= 1 then
 		strTime = ("%dd"):format(fDays)
 	elseif fHours >= 1 then
@@ -706,7 +790,7 @@ function EssenceEventTracker:HelperTimeString(fTime, strColorOverride)
 	else
 		strTime = ("%d:%.02d"):format(fMinutes, fSeconds)
 	end
-	
+
 	return string.format("<T Font=\"CRB_InterfaceMedium_B\" TextColor=\"%s\">(%s)</T>", strColor, strTime)
 end
 
@@ -733,14 +817,14 @@ do
 		[11]= 30 * 86400,
 		[12]= 31 * 86400,
 	}
-	
+
 	--this is no readable date-table. But its fine to compare with others.
 	function EssenceEventTracker:BuildDateTable(fTime, fNow, tNow)
 		fNow = fNow or GameLib.GetGameTime()
 		tNow = tNow or GameLib.GetServerTime()
-		
+
 		local dT = fTime-fNow
-		
+
 		return {
 			nYear = tNow.nYear,
 			nMonth = tNow.nMonth,
@@ -751,19 +835,19 @@ do
 			nGameTime = fTime,
 		}
 	end
-	
+
 	function EssenceEventTracker:AdjustDateTable(tTime, fNow, tNow)
 		fNow = fNow or GameLib.GetGameTime()
 		tNow = tNow or GameLib.GetServerTime()
-		
+
 		tTime.nGameTime = fNow+self:CompareDateTables(tNow, tTime)
 		return tTime
 	end
-	
-	function EssenceEventTracker:CompareDateTables(date1, date2) --returns seconds between date1 and date2		
+
+	function EssenceEventTracker:CompareDateTables(date1, date2) --returns seconds between date1 and date2
 		local nTotal = 0
 		local nYear = 0
-		
+
 		if date1.nYear < date2.nYear then
 			local diff = date2.nYear-date1.nYear
 			nTotal = nTotal + diff * 31536000
@@ -775,7 +859,7 @@ do
 			nTotal = nTotal - math.floor(((date2.nYear-1)%4+diff)/4) * 86400
 			nYear = date2.nYear
 		end
-		
+
 		if date1.nMonth < date2.nMonth then
 			for i = date1.nMonth, date2.nMonth-1, 1 do
 				nTotal = nTotal + constants[i]
@@ -791,21 +875,21 @@ do
 				nTotal = nTotal - 86400
 			end
 		end
-		
+
 		if date1.nDay ~= date2.nDay then
 			nTotal = nTotal + (date2.nDay-date1.nDay)*86400
 		end
-		
+
 		if date1.nHour ~= date2.nHour then
 			nTotal = nTotal + (date2.nHour-date1.nHour)*3600
 		end
-		
+
 		if date1.nMinute ~= date2.nMinute then
 			nTotal = nTotal + (date2.nMinute-date1.nMinute)*60
 		end
-		
+
 		nTotal = nTotal + date2.nSecond - date1.nSecond
-		
+
 		return nTotal
 	end
 end
