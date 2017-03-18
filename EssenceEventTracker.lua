@@ -243,6 +243,7 @@ function EssenceEventTracker:CompareNil(rTbl1, rTbl2)
 	elseif not rTbl2 then
 		return -1
 	end
+	return 0
 end
 
 function EssenceEventTracker:CompareCompletedStatus(rTbl1, rTbl2)
