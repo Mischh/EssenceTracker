@@ -223,7 +223,7 @@ function EssenceEventTracker:GetSortedRewardList(eSort, arRewardList, funcOrig, 
 				local rTbl1 = self:GetRotationForFeaturedReward(tData1)
 				local rTbl2 = self:GetRotationForFeaturedReward(tData2)
 				if not rTbl1 or not rTbl2 then
-					return 0
+					return self:CompareNil(rTbl1, rTbl2)
 				end
 				return self.tCustomSortFunctions[eSort](self, rTbl1, rTbl2)
 			end
@@ -233,6 +233,16 @@ function EssenceEventTracker:GetSortedRewardList(eSort, arRewardList, funcOrig, 
 	end
 
 	return arRewardList
+end
+
+function EssenceEventTracker:CompareNil(rTbl1, rTbl2)
+	if not rTbl1 and not rTbl2 then
+		return 0
+	elseif not rTbl1 then
+		return 1
+	elseif not rTbl2 then
+		return -1
+	end
 end
 
 function EssenceEventTracker:CompareCompletedStatus(rTbl1, rTbl2)
