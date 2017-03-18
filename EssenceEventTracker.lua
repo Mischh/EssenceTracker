@@ -326,7 +326,7 @@ function EssenceEventTracker:GetRotationForBonusRewardTabEntry(wndFeaturedEntry)
 end
 
 function EssenceEventTracker:GetRotationForFeaturedReward(tData)
-	local rTbl = self.tContentIds
+	local rTbl = tData and self.tContentIds
 	rTbl = rTbl and rTbl[tData.nContentId]
 	rTbl = rTbl and rTbl[tData.tRewardInfo.nRewardType] or nil
 	return rTbl
