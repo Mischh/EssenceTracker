@@ -138,13 +138,13 @@ function EssenceEventTracker:PlaceOverlays()
 end
 
 function EssenceEventTracker:GetFeaturedEntries()
-  --self.addonMatchMaker.tWndRefs.wndMain:FindChild("TabContent:RewardContent"):GetChildren()
-  local wndFeaturedEntries = self.addonMatchMaker
-  wndFeaturedEntries = wndFeaturedEntries and wndFeaturedEntries.tWndRefs
-  wndFeaturedEntries = wndFeaturedEntries and wndFeaturedEntries.wndMain
-  wndFeaturedEntries = wndFeaturedEntries and wndFeaturedEntries:FindChild("TabContent:RewardContent")
-  wndFeaturedEntries = wndFeaturedEntries and wndFeaturedEntries:GetChildren() or {}
-  return wndFeaturedEntries
+	--self.addonMatchMaker.tWndRefs.wndMain:FindChild("TabContent:RewardContent"):GetChildren()
+	local wndFeaturedEntries = self.addonMatchMaker
+	wndFeaturedEntries = wndFeaturedEntries and wndFeaturedEntries.tWndRefs
+	wndFeaturedEntries = wndFeaturedEntries and wndFeaturedEntries.wndMain
+	wndFeaturedEntries = wndFeaturedEntries and wndFeaturedEntries:FindChild("TabContent:RewardContent")
+	wndFeaturedEntries = wndFeaturedEntries and wndFeaturedEntries:GetChildren() or {}
+	return wndFeaturedEntries
 end
 
 function EssenceEventTracker:GetRotationForBonusRewardTabEntry(wndFeaturedEntry)
@@ -153,13 +153,13 @@ function EssenceEventTracker:GetRotationForBonusRewardTabEntry(wndFeaturedEntry)
 end
 
 function EssenceEventTracker:BuildOverlay(wndFeaturedEntry, rTbl)
-  local overlay = Apollo.LoadForm(self.xmlDoc, "Overlay", wndFeaturedEntry, self)
-  overlay:FindChild("Completed"):SetData(rTbl)
-  if self:IsDone(rTbl) then
+	local overlay = Apollo.LoadForm(self.xmlDoc, "Overlay", wndFeaturedEntry, self)
+	overlay:FindChild("Completed"):SetData(rTbl)
+	if self:IsDone(rTbl) then
 		overlay:FindChild("Completed"):SetCheck(true)
-  else
+	else
 		overlay:FindChild("Shader"):Show(false)
-  end
+	end
 end
 
 function EssenceEventTracker:OnSave(eType)
