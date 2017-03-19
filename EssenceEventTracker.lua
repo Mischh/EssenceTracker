@@ -686,7 +686,7 @@ do
 		end
 	end
 
-	instances = {
+	local instances = {
 		[13] = {--"Stormtalon's Lair",
 			parentZoneId = nil,	id = 19,	nContentId = 12,	nContentType = 1,	nBase = 65,
 		},
