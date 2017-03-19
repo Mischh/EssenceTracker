@@ -1,3 +1,12 @@
+<p><strong>Release v1.???:</strong></p>
+	<p>Added:</p>
+	<ul>
+		<li></li>
+	</ul>
+	<p>Fixes:</p>
+	<ul>
+		<li></li>
+	</ul>
 <p><strong>Release v1.1:</strong></p>
 	<p>Added:</p>
 	<ul>
