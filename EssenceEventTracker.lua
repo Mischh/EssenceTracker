@@ -6,20 +6,6 @@ local EssenceEventTracker = {}
 local kstrAddon = "EssenceTracker"
 local lstrAddon = "Essence Tracker"
 
-local ktRotationContentTypes = {
-	Dungeon = 1,
-	Dailies = 2,
-	Expedition = 3,
-	WorldBoss = 4,
-	PvP = 5,
-	Queues = 6,
-	[1] = "Dungeon",
-	[2] = "Dailies",
-	[3] = "Expedition",
-	[4] = "WorldBoss",
-	[5] = "PvP",
-	[6] = "Queues",
-}
 local ktShortContentTypes = {
 	[1] = "Dng",
 	[2] = "Day",
@@ -796,11 +782,22 @@ do
 		end
 	end
 
+	
+	function EssenceEventTracker:CheckVeteran(bVet)
+		local tInstanceSettingsInfo = GameLib.GetInstanceSettings()
+		print("isVet:",tInstanceSettingsInfo.eWorldDifficulty, bVet)
+		if bVet then
+			return tInstanceSettingsInfo.eWorldDifficulty == GroupLib.Difficulty.Veteran
+		else
+			return tInstanceSettingsInfo.eWorldDifficulty == GroupLib.Difficulty.Normal
+		end
+	end
+	
 	function EssenceEventTracker:EssenceInInstance(tMoney, nContentId, nBase)
 		local nRewardType = validCurrencies[tMoney:GetAccountCurrencyType()]
 		local rTbl = self.tContentIds[nContentId] and self.tContentIds[nContentId][nRewardType]
-		if not rTbl then return end
-
+		if not rTbl or not self:CheckVeteran(rTbl.src.bIsVeteran) then return end
+		
 		if tMoney:GetAccountCurrencyType() ~= rTbl.tReward.monReward:GetAccountCurrencyType() then return end
 
 		if nRewardType == 1 then --no multiplicator (purple essences)
@@ -826,8 +823,9 @@ do
 	function EssenceEventTracker:EssenceInQueue(tMoney, nContentType, nBase)
 		local nRewardType = validCurrencies[tMoney:GetAccountCurrencyType()]
 		local rTbl = self.tContentIds[46] and self.tContentIds[46][nRewardType] --46 = Random Queue - usually normal dungeon with rewardType 1 (100 purples)
-		if not rTbl or rTbl.src.eMatchType ~= nContentType then return end
-
+		
+    if not rTbl or rTbl.src.eMatchType ~= nContentType or not self:CheckVeteran(rTbl.src.bIsVeteran) then return end
+		
 		if tMoney:GetAccountCurrencyType() ~= rTbl.tReward.monReward:GetAccountCurrencyType() then return end
 
 		if nRewardType == 1 then --no multiplicator (purple essences)
