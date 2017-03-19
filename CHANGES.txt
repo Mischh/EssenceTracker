@@ -5,7 +5,8 @@
 		<ul>
 			<li>Gray overlay for completed Events.</li>
 			<li>Checkbox to toggle done Events.</li>
-			<li>Sorting for Content Finder and Objective Tracker.</li>
+			<li>Remember sorting for Content Finder and Objective Tracker.</li>
+			<li>Additional sorting options for multiplier and essence color.</li>
 		</ul>
 	</ul>
 	<p>Fixes:</p>
