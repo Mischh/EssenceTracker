@@ -774,7 +774,6 @@ do
 	end
 
 	local function closeEnough(approx, exact)
-		print("approx:", approx, exact)
 		if approx*1.05 > exact and approx*0.95 < exact then
 			return true
 		else
@@ -785,7 +784,6 @@ do
 	
 	function EssenceEventTracker:CheckVeteran(bVet)
 		local tInstanceSettingsInfo = GameLib.GetInstanceSettings()
-		print("isVet:",tInstanceSettingsInfo.eWorldDifficulty, bVet)
 		if bVet then
 			return tInstanceSettingsInfo.eWorldDifficulty == GroupLib.Difficulty.Veteran
 		else
