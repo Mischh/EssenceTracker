@@ -1,0 +1,19 @@
+<p><strong>Release v1.1:</strong></p>
+	<p>Added:</p>
+	<ul>
+		<li>Overlay inside Content Finder:</li>
+		<ul>
+			<li>Gray overlay for completed Events.</li>
+			<li>Checkbox to toggle done Events.</li>
+			<li>Sorting for Content Finder and Objective Tracker.</li>
+		</ul>
+	</ul>
+	<p>Fixes:</p>
+	<ul>
+		<li>Purple Essence-Events are now tracked for signature-players aswell.</li>
+	</ul>
+<p><strong>Release v1.0a:</strong></p>
+	<p>Added:</p>
+	<ul>
+		<li>Tooltips for icons.</li>
+	</ul>
