@@ -173,14 +173,14 @@ function EssenceEventTracker:AddAdditionalSortOptions()
 
 	local wndSortMultiplier = Apollo.LoadForm(refXmlDoc, strSortOptionForm, wndSortContainer, self.addonMatchMaker)
 	wndSortMultiplier:SetData(keFeaturedSort.Multiplier)
-	wndSortMultiplier:SetText("Multiplier")
+	wndSortMultiplier:SetText(Apollo.GetString("Protogames_Bonus")) --"Multiplier"
 	if wndSort:GetData() == keFeaturedSort.Multiplier then
 		wndSortMultiplier:SetCheck(true)
 	end
 
 	local wndSortColor = Apollo.LoadForm(refXmlDoc, strSortOptionForm, wndSortContainer, self.addonMatchMaker)
 	wndSortColor:SetData(keFeaturedSort.Color)
-	wndSortColor:SetText("Essence Color")
+	wndSortColor:SetText(Apollo.GetString("AccountInventory_Essence").." "..Apollo.GetString("CRB_Color")) --"Essence Color"
 
 	local sortContainerChildren = wndSortContainer:GetChildren()
 	local nLeft, nTop, nRight = wndSortDropdown:GetOriginalLocation():GetOffsets()
