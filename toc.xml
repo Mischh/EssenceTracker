@@ -1,4 +1,6 @@
-<Addon Name="MischhEssenceTracker" Version="1" Author="Mischh X" APIVersion="15" Description="">
+<Addon Name="MischhEssenceTracker" Version="1" Author="Mischh X &amp; Zod Bain@Jabbit &amp; Aramunn" APIVersion="15" Description="">
+    <ReplaceAddon Name="PrimalTracker"/> <!-- Original Addon for Contentfinder-Implementations -->
+	
     <Script Name="EssenceEventTracker.lua"/>
     <Form Name="EssenceEventTracker.xml"/>
 </Addon>
