@@ -511,7 +511,6 @@ nContentType: (1-6)
 	end
 end
 
-local insert = table.insert
 function EssenceEventTracker:UpdateAll()
 	self.timerUpdateDelay:Stop()
 	self.tRotations = {}
@@ -923,7 +922,6 @@ end
 ---------------------------------------------------------------------------------------------------
 -- Helpers
 ---------------------------------------------------------------------------------------------------
-local floor = math.floor
 function EssenceEventTracker:HelperTimeString(fTime, strColorOverride)
 	local fSeconds = fTime % 60
 	local fMinutes = (fTime / 60)%60
