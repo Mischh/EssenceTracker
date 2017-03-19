@@ -42,12 +42,13 @@ local ktMatchTypeNames = {
 
 --Interesting:
 -- GameLib.GetWorldPrimeLevel
-
-local kstrRed 		= "ffff4c4c"
-local kstrGreen 	= "ff2fdc02"
-local kstrYellow 	= "fffffc00"
-local kstrLightGrey = "ffb4b4b4"
-local kstrHighlight = "ffffe153"
+local kstrColors = {
+	kstrRed 		= "ffff4c4c",
+	kstrGreen 	= "ff2fdc02",
+	kstrYellow 	= "fffffc00",
+	kstrLightGrey = "ffb4b4b4",
+	kstrHighlight = "ffffe153",
+}
 
 function EssenceEventTracker:new(o)
     o = o or {}
@@ -634,7 +635,7 @@ function EssenceEventTracker:DrawRotation(idx, rTbl)
 		wndForm:FindChild("EssenceIcon"):SetTooltip("")
 	end
 	wndForm:FindChild("ControlBackerBtn:TimeText"):SetText(self:HelperTimeString(rTbl.fEndTime-GameLib.GetGameTime()))
-	wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorizeIf(rTbl.strText, kstrRed, self:IsDone(rTbl)))
+	wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorizeIf(rTbl.strText, kstrColors.kstrRed, self:IsDone(rTbl)))
 	wndForm:SetData(rTbl)
 end
 
@@ -928,7 +929,7 @@ function EssenceEventTracker:HelperTimeString(fTime, strColorOverride)
 	local fMinutes = (fTime / 60)%60
 	local fHours = (fTime / 3600)%24
 	local fDays = (fTime / 86400)
-	local strColor = kstrYellow
+	local strColor = kstrColors.kstrYellow
 	if strColorOverride then
 		strColor = strColorOverride
 	end
