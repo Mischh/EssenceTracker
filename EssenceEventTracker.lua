@@ -6,20 +6,6 @@ local EssenceEventTracker = {}
 local kstrAddon = "EssenceTracker"
 local lstrAddon = "Essence Tracker"
 
-local ktRotationContentTypes = {
-	Dungeon = 1,
-	Dailies = 2,
-	Expedition = 3,
-	WorldBoss = 4,
-	PvP = 5,
-	Queues = 6,
-	[1] = "Dungeon",
-	[2] = "Dailies",
-	[3] = "Expedition",
-	[4] = "WorldBoss",
-	[5] = "PvP",
-	[6] = "Queues",
-}
 local ktShortContentTypes = {
 	[1] = "Dng",
 	[2] = "Day",
