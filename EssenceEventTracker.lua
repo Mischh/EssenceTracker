@@ -828,7 +828,7 @@ do
 
 		if nRewardType == 1 then --no multiplicator (purple essences)
 			local fSignature = AccountItemLib.GetPremiumTier() > 0 and 1.5 or 1
-			local approx = rTbl.tReward.monReward:GetAmount()
+			local approx = rTbl.tReward.monReward:GetAmount() * fSignature
 
 			if closeEnough(approx, tMoney:GetAmount()) then
 				self:MarkAsDone(rTbl)
