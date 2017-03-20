@@ -421,7 +421,8 @@ function EssenceEventTracker:OnObjectiveTrackerLoaded(wndForm)
 	Apollo.RegisterEventHandler("CharacterCreated", "OnCharacterCreated", self)
 
 	self.wndMain = Apollo.LoadForm(self.xmlDoc, "ContentGroupItem", wndForm, self)
-	self.wndContainer = self.wndMain:FindChild("EpisodeGroupContainer")
+	self.wndContainerAvailable = self.wndMain:FindChild("EventContainerAvailable")
+	self.wndContainerDone = self.wndMain:FindChild("EventContainerDone")
 
 	self:Setup()
 end
@@ -538,7 +539,7 @@ function EssenceEventTracker:UpdateAll()
 		self.updateTimer = nil
 	end
 
-	self:ResizeAll(#self.tRotations)
+	self:RedrawAll()
 end
 
 function EssenceEventTracker:UpdateFeaturedList()
@@ -547,46 +548,59 @@ function EssenceEventTracker:UpdateFeaturedList()
 	end
 end
 
-function EssenceEventTracker:ResizeAll(nCount)
+function EssenceEventTracker:RedrawAll()
 	local nStartingHeight = self.wndMain:GetHeight()
 	local bStartingShown = self.wndMain:IsShown()
 
+	local nAvailable, nDone = 0,0
+	
 	for i, rTbl in ipairs(self.tRotations) do
-		self:DrawRotation(i, rTbl)
+		nAvailable, nDone = self:DrawRotation(rTbl, nAvailable, nDone)
 	end
-
-	local tChildren = self.wndContainer:GetChildren()
-	for i = nCount+1, #tChildren, 1 do
-		tChildren[i]:Destroy()
+	
+	local tAvailableChildren = self.wndContainerAvailable:GetChildren()
+	for i = nAvailable+1, #tAvailableChildren, 1 do
+		tAvailableChildren[i]:Destroy()
 	end
-
+	
+	local tDoneChildren = self.wndContainerDone:GetChildren()
+	for i = nDone+1, #tDoneChildren, 1 do
+		tDoneChildren[i]:Destroy()
+	end
+	
 	if self.bShow then
 		if self.tMinimized.bRoot then
-			self.wndContainer:Show(false)
+			self.wndContainerAvailable:Show(false)
+			self.wndContainerDone:Show(false)
 
 			local nLeft, nTop, nRight, nBottom = self.wndMain:GetOriginalLocation():GetOffsets()
 			self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, nBottom)
 		else
 			-- Resize quests
-			local nChildHeight = self.wndContainer:ArrangeChildrenVert(Window.CodeEnumArrangeOrigin.LeftOrTop, function(wndA, wndB)
+			local nAvailableHeight = self.wndContainerAvailable:ArrangeChildrenVert(Window.CodeEnumArrangeOrigin.LeftOrTop, function(wndA, wndB)
 				return self.tCustomSortFunctions[self.eSort](self, wndA:GetData(), wndB:GetData())
 			end)
+			self.wndContainerAvailable:SetAnchorOffsets(0,0,0,nAvailableHeight)
+			
+			local nDoneHeight = self.wndContainerDone:ArrangeChildrenVert(Window.CodeEnumArrangeOrigin.LeftOrTop, function(wndA, wndB)
+				return self.tCustomSortFunctions[self.eSort](self, wndA:GetData(), wndB:GetData())
+			end)
+			self.wndContainerDone:SetAnchorOffsets(0,0,0,nDoneHeight)
 
-			local nHeightChange = nChildHeight - self.wndContainer:GetHeight()
-			self.wndContainer:Show(true)
+			self.wndContainerAvailable:Show(true)
+			self.wndContainerDone:Show(true)
 
-			local nLeft, nTop, nRight, nBottom = self.wndMain:GetAnchorOffsets()
-			self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, nBottom + nHeightChange)
+			local nLeft, nTop, nRight, nBottom = self.wndMain:GetOriginalLocation():GetOffsets()
+			self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, nBottom+nAvailableHeight+nDoneHeight)
 		end
 	end
-	local bShow = self.bShow and nCount > 0
-	self.wndMain:Show(bShow)
-
-	if nStartingHeight ~= self.wndMain:GetHeight() or self.nTrackerCounting ~= nCount or bShow ~= bStartingShown then
+	self.wndMain:Show(self.bShow)
+	
+	if nStartingHeight ~= self.wndMain:GetHeight() or self.nAvailableCounting ~= nAvailable or self.nDoneCounting ~= nDone or self.bShow ~= bStartingShown then
 		local tData =
 		{
 			["strAddon"] = lstrAddon,
-			["strText"] = nCount,
+			["strText"] = nAvailable,
 			["bChecked"] = self.bShow,
 		}
 		Event_FireGenericEvent("ObjectiveTracker_UpdateAddOn", tData)
@@ -596,7 +610,8 @@ function EssenceEventTracker:ResizeAll(nCount)
 		self.timerRealTimeUpdate:Start()
 	end
 
-	self.nTrackerCounting = nCount
+	self.nAvailableCounting = nAvailable
+	self.nDoneCounting = nDone
 end
 
 function EssenceEventTracker:IsDone(rTbl)
@@ -619,11 +634,14 @@ function EssenceEventTracker:IsDone(rTbl)
 	return false --we are past the 'target-time'
 end
 
-function EssenceEventTracker:DrawRotation(idx, rTbl)
-	while not self.wndContainer:GetChildren()[idx] do
-		Apollo.LoadForm(self.xmlDoc, "EssenceItem", self.wndContainer, self)
+function EssenceEventTracker:DrawRotation(rTbl, nAvailable, nDone)
+	local bDone = self:IsDone(rTbl)
+	local wndContainer = bDone and self.wndContainerDone or self.wndContainerAvailable
+	local idx = bDone and nDone+1 or nAvailable+1
+	while not wndContainer:GetChildren()[idx] do
+		Apollo.LoadForm(self.xmlDoc, "EssenceItem", wndContainer, self)
 	end
-	local wndForm = self.wndContainer:GetChildren()[idx]
+	local wndForm = wndContainer:GetChildren()[idx]
 	wndForm:FindChild("EssenceIcon"):SetSprite(rTbl.strIcon)
 	wndForm:FindChild("EssenceIcon"):SetText(rTbl.strMult)
 	if rTbl.tReward.nRewardType == 1 then -- example: 400 Purple Essence
@@ -634,13 +652,22 @@ function EssenceEventTracker:DrawRotation(idx, rTbl)
 		wndForm:FindChild("EssenceIcon"):SetTooltip("")
 	end
 	wndForm:FindChild("ControlBackerBtn:TimeText"):SetText(self:HelperTimeString(rTbl.fEndTime-GameLib.GetGameTime()))
-	wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorizeIf(rTbl.strText, kstrColors.kstrRed, self:IsDone(rTbl)))
+	wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorizeIf(rTbl.strText, kstrColors.kstrRed, bDone))
 	wndForm:SetData(rTbl)
+	
+	--returns nAvailable, nDone (incremented accordingly)
+	return (bDone and nAvailable or idx), (bDone and idx or nDone)
 end
 
 function EssenceEventTracker:RedrawTimers()
 	local update = false
-	for _, wndForm in ipairs(self.wndContainer:GetChildren()) do
+	for _, wndForm in ipairs(self.wndContainerAvailable:GetChildren()) do
+		local rTbl = wndForm:GetData()
+		local fTimeLeft = rTbl.fEndTime-GameLib.GetGameTime()
+		wndForm:FindChild("ControlBackerBtn:TimeText"):SetText(self:HelperTimeString(fTimeLeft))
+		if fTimeLeft < 0 then update = true end
+	end
+	for _, wndForm in ipairs(self.wndContainerDone:GetChildren()) do
 		local rTbl = wndForm:GetData()
 		local fTimeLeft = rTbl.fEndTime-GameLib.GetGameTime()
 		wndForm:FindChild("ControlBackerBtn:TimeText"):SetText(self:HelperTimeString(fTimeLeft))
@@ -873,25 +900,25 @@ end
 -- Controls Events
 ---------------------------------------------------------------------------------------------------
 
-function EssenceEventTracker:OnEpisodeGroupControlBackerMouseEnter(wndHandler, wndControl)
+function EssenceEventTracker:OnHeadlineBtnMouseEnter(wndHandler, wndControl)
 	if wndHandler == wndControl then
-		wndHandler:FindChild("EpisodeGroupMinimizeBtn"):Show(true)
+		wndHandler:FindChild("MinimizeBtn"):Show(true)
 	end
 end
 
-function EssenceEventTracker:OnEpisodeGroupControlBackerMouseExit(wndHandler, wndControl)
+function EssenceEventTracker:OnHeadlineBtnMouseExit(wndHandler, wndControl)
 	if wndHandler == wndControl then
-		local wndBtn = wndHandler:FindChild("EpisodeGroupMinimizeBtn")
+		local wndBtn = wndHandler:FindChild("MinimizeBtn")
 		wndBtn:Show(wndBtn:IsChecked())
 	end
 end
 
-function EssenceEventTracker:OnContentGroupMinimizedBtnChecked(wndHandler, wndControl, eMouseButton)
+function EssenceEventTracker:OnHeadlineMinimizeBtnChecked(wndHandler, wndControl, eMouseButton)
 	self.tMinimized.bRoot = true
 	self:UpdateAll()
 end
 
-function EssenceEventTracker:OnContentGroupMinimizedBtnUnChecked(wndHandler, wndControl, eMouseButton)
+function EssenceEventTracker:OnHeadlineMinimizeBtnUnChecked(wndHandler, wndControl, eMouseButton)
 	self.tMinimized.bRoot = false
 	self:UpdateAll()
 end
