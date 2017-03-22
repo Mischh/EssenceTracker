@@ -247,7 +247,9 @@ function EssenceEventTracker:SortByContentType(rTbl1, rTbl2)
 	if nCompare ~= 0 then return nCompare < 0 end
 	nCompare = self:CompareByContentType(rTbl1, rTbl2)
 	if nCompare ~= 0 then return nCompare < 0 end
-	return self:CompareByMultiplier(rTbl1, rTbl2) > 0
+	nCompare = self:CompareByMultiplier(rTbl1, rTbl2)
+	if nCompare ~= 0 then return nCompare < 0 end
+	return self:CompareByContentId(rTbl1, rTbl2) > 0
 end
 
 function EssenceEventTracker:SortByTimeRemaining(rTbl1, rTbl2)
@@ -255,7 +257,11 @@ function EssenceEventTracker:SortByTimeRemaining(rTbl1, rTbl2)
 	if nCompare ~= 0 then return nCompare < 0 end
 	nCompare = self:CompareByTimeRemaining(rTbl1, rTbl2)
 	if nCompare ~= 0 then return nCompare < 0 end
-	return self:CompareByMultiplier(rTbl1, rTbl2) > 0
+	nCompare = self:CompareByMultiplier(rTbl1, rTbl2)
+	if nCompare ~= 0 then return nCompare < 0 end
+	nCompare = self:CompareByContentType(rTbl1, rTbl2)
+	if nCompare ~= 0 then return nCompare < 0 end
+	return self:CompareByContentId(rTbl1, rTbl2) > 0
 end
 
 function EssenceEventTracker:SortByMultiplier(rTbl1, rTbl2)
@@ -263,7 +269,11 @@ function EssenceEventTracker:SortByMultiplier(rTbl1, rTbl2)
 	if nCompare ~= 0 then return nCompare < 0 end
 	nCompare = self:CompareByMultiplier(rTbl1, rTbl2)
 	if nCompare ~= 0 then return nCompare > 0 end
-	return self:CompareByTimeRemaining(rTbl1, rTbl2) < 0
+	nCompare = self:CompareByTimeRemaining(rTbl1, rTbl2)
+	if nCompare ~= 0 then return nCompare > 0 end
+	nCompare = self:CompareByContentType(rTbl1, rTbl2)
+	if nCompare ~= 0 then return nCompare < 0 end
+	return self:CompareByContentId(rTbl1, rTbl2) > 0
 end
 
 function EssenceEventTracker:SortByColor(rTbl1, rTbl2)
@@ -271,7 +281,11 @@ function EssenceEventTracker:SortByColor(rTbl1, rTbl2)
 	if nCompare ~= 0 then return nCompare < 0 end
 	nCompare = self:CompareByColor(rTbl1, rTbl2)
 	if nCompare ~= 0 then return nCompare < 0 end
-	return self:CompareByMultiplier(rTbl1, rTbl2) > 0
+	nCompare = self:CompareByMultiplier(rTbl1, rTbl2)
+	if nCompare ~= 0 then return nCompare > 0 end
+	nCompare = self:CompareByContentType(rTbl1, rTbl2)
+	if nCompare ~= 0 then return nCompare < 0 end
+	return self:CompareByContentId(rTbl1, rTbl2) > 0
 end
 
 function EssenceEventTracker:CompareByContentType(rTbl1, rTbl2)
@@ -295,6 +309,12 @@ end
 function EssenceEventTracker:CompareByColor(rTbl1, rTbl2)
 	local nA = rTbl1.tReward and rTbl1.tReward.monReward and rTbl1.tReward.monReward:GetAccountCurrencyType() or 0
 	local nB = rTbl2.tReward and rTbl2.tReward.monReward and rTbl2.tReward.monReward:GetAccountCurrencyType() or 0
+	return nB - nA
+end
+
+function EssenceEventTracker:CompareByContentId(rTbl1, rTbl2)
+	local nA = rTbl1.src.nContentId or 0
+	local nB = rTbl2.src.nContentId or 0
 	return nB - nA
 end
 
