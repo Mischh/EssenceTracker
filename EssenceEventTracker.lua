@@ -66,6 +66,7 @@ function EssenceEventTracker:new(o)
 	o.tMinimized =
 	{
 		bRoot = false,
+		bDoneRoot = false,
 		tQuests = {},
 	}
 	o.tEventsDone =
@@ -572,9 +573,10 @@ function EssenceEventTracker:RedrawAll()
 		if self.tMinimized.bRoot then
 			self.wndContainerAvailable:Show(false)
 			self.wndContainerDone:Show(false)
-
-			local nLeft, nTop, nRight, nBottom = self.wndMain:GetOriginalLocation():GetOffsets()
-			self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, nBottom)
+			
+			local nLeft, nOffset, nRight = self.wndMain:GetAnchorOffsets() --current location
+			local _, nTop, _, nBottom = self.wndMain:GetOriginalLocation():GetOffsets()
+			self.wndMain:SetAnchorOffsets(nLeft, nOffset, nRight, nOffset + nBottom - nTop)
 		else
 			-- Resize quests
 			local nAvailableHeight = self.wndContainerAvailable:ArrangeChildrenVert(Window.CodeEnumArrangeOrigin.LeftOrTop, function(wndA, wndB)
@@ -582,16 +584,22 @@ function EssenceEventTracker:RedrawAll()
 			end)
 			self.wndContainerAvailable:SetAnchorOffsets(0,0,0,nAvailableHeight)
 			
-			local nDoneHeight = self.wndContainerDone:ArrangeChildrenVert(Window.CodeEnumArrangeOrigin.LeftOrTop, function(wndA, wndB)
-				return self.tCustomSortFunctions[self.eSort](self, wndA:GetData(), wndB:GetData())
-			end)
-			self.wndContainerDone:SetAnchorOffsets(0,0,0,nDoneHeight)
-
+			if self.tMinimized.bDoneRoot then
+				self.wndContainerDone:SetAnchorOffsets(0,0,0,0)
+			else			
+				local nDoneHeight = self.wndContainerDone:ArrangeChildrenVert(Window.CodeEnumArrangeOrigin.LeftOrTop, function(wndA, wndB)
+					return self.tCustomSortFunctions[self.eSort](self, wndA:GetData(), wndB:GetData())
+				end)
+				self.wndContainerDone:SetAnchorOffsets(0,0,0,nDoneHeight)
+			end
+			
 			self.wndContainerAvailable:Show(true)
 			self.wndContainerDone:Show(true)
-
-			local nLeft, nTop, nRight, nBottom = self.wndMain:GetOriginalLocation():GetOffsets()
-			self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, nBottom+nAvailableHeight+nDoneHeight)
+			
+			local nHeight = self.wndMain:ArrangeChildrenVert()
+			
+			local nLeft, nTop, nRight, _ = self.wndMain:GetAnchorOffsets()
+			self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, nTop+nHeight)
 		end
 	end
 	self.wndMain:Show(self.bShow)
@@ -920,6 +928,28 @@ end
 
 function EssenceEventTracker:OnHeadlineMinimizeBtnUnChecked(wndHandler, wndControl, eMouseButton)
 	self.tMinimized.bRoot = false
+	self:UpdateAll()
+end
+
+function EssenceEventTracker:OnDoneHeadlineBtnMouseEnter(wndHandler, wndControl)
+	if wndHandler == wndControl then
+		wndHandler:FindChild("MinimizeBtn"):Show(true)
+	end
+end
+
+function EssenceEventTracker:OnDoneHeadlineBtnMouseExit(wndHandler, wndControl)
+	if wndHandler == wndControl then
+		wndHandler:FindChild("MinimizeBtn"):Show(false)
+	end
+end
+
+function EssenceEventTracker:OnDoneHeadlineMinimizeBtnChecked(wndHandler, wndControl, eMouseButton)
+	self.tMinimized.bDoneRoot = true
+	self:UpdateAll()
+end
+
+function EssenceEventTracker:OnDoneHeadlineMinimizeBtnUnChecked(wndHandler, wndControl, eMouseButton)
+	self.tMinimized.bDoneRoot = false
 	self:UpdateAll()
 end
 
