@@ -651,15 +651,8 @@ function EssenceEventTracker:IsDone(rTbl)
 
 	local fEnd = tEnd.nGameTime
 	if not fEnd then return false end
-
-	local fNow = GameLib.GetGameTime()
-	if fNow < fEnd then return true end
-
-	tRewardEnds[rTbl.tReward.nRewardType] = nil
-	if not next(tRewardEnds) then
-		self.tEventsDone[rTbl.src.nContentId] = nil
-	end
-	return false --we are past the 'target-time'
+	
+	return math.abs(fEnd - rTbl.fEndTime) < 60
 end
 
 function EssenceEventTracker:DrawRotation(rTbl, nAvailable, nDone)
@@ -905,11 +898,8 @@ end
 function EssenceEventTracker:MarkAsDone(rTbl, bToggle)
 	local cId, rId = rTbl.src.nContentId, rTbl.tReward.nRewardType
 
-	if bToggle then
-		if not self.tEventsDone[cId] or not self.tEventsDone[cId][rId] then
-			self.tEventsDone[cId] = self.tEventsDone[cId] or {}
-			self.tEventsDone[cId][rId] = self:BuildDateTable(rTbl.fEndTime-10)
-		else
+	if bToggle and self:IsDone(rTbl) then
+		if self.tEventsDone[cId] then --should always be true, but... make sure.
 			self.tEventsDone[cId][rId] = nil
 			if not next(self.tEventsDone[cId]) then
 				self.tEventsDone[cId] = nil
@@ -917,7 +907,7 @@ function EssenceEventTracker:MarkAsDone(rTbl, bToggle)
 		end
 	else
 		self.tEventsDone[cId] = self.tEventsDone[cId] or {}
-		self.tEventsDone[cId][rId] = self:BuildDateTable(rTbl.fEndTime-10)
+		self.tEventsDone[cId][rId] = self:BuildDateTable(rTbl.fEndTime)
 	end
 
 	self:UpdateAll()
