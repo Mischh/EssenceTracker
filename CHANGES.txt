@@ -1,7 +1,7 @@
 <p><strong>Release v1.???:</strong></p>
 	<p>Added:</p>
 	<ul>
-		<li></li>
+		<li>Objective Tracker: Completed Events can now be closed off.</li>
 	</ul>
 	<p>Fixes:</p>
 	<ul>
