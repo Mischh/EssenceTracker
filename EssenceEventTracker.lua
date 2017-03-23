@@ -303,7 +303,7 @@ end
 function EssenceEventTracker:CompareByMultiplier(rTbl1, rTbl2)
 	local nA = rTbl1.tReward and rTbl1.tReward.nMultiplier or 0
 	local nB = rTbl2.tReward and rTbl2.tReward.nMultiplier or 0
-	return nA - nB
+	return nB - nA
 end
 
 function EssenceEventTracker:CompareByColor(rTbl1, rTbl2)
