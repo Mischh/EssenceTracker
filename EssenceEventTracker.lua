@@ -297,7 +297,8 @@ end
 function EssenceEventTracker:CompareByTimeRemaining(rTbl1, rTbl2)
 	local nA = rTbl1.fEndTime or 0
 	local nB = rTbl2.fEndTime or 0
-	return nA - nB
+	local nAB = nA - nB
+	return math.abs(nAB)<5 and 0 or nAB
 end
 
 function EssenceEventTracker:CompareByMultiplier(rTbl1, rTbl2)
