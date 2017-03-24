@@ -46,7 +46,7 @@ local ktMatchTypeNames = {
 --Interesting:
 -- GameLib.GetWorldPrimeLevel
 local kstrColors = {
-	kstrRed 		= "ffff4c4c",
+	kstrRed 	= "ffff4c4c",
 	kstrGreen 	= "ff2fdc02",
 	kstrYellow 	= "fffffc00",
 	kstrLightGrey = "ffb4b4b4",
@@ -72,10 +72,8 @@ function EssenceEventTracker:new(o)
 		bDoneRoot = false,
 		tQuests = {},
 	}
-	o.tEventsDone =
-	{
-		--[nContentId] = fTimeEndTime
-	}
+	o.tEventsDone = {}
+	o.tEventsAttending = {}
 	o.tCustomSortFunctions = {
 		[keFeaturedSort.ContentType] = self.SortByContentType,
 		[keFeaturedSort.TimeRemaining] = self.SortByTimeRemaining,
@@ -238,8 +236,8 @@ function EssenceEventTracker:CompareNil(rTbl1, rTbl2)
 end
 
 function EssenceEventTracker:CompareCompletedStatus(rTbl1, rTbl2)
-	local bIsDone1 = self:IsDone(rTbl1)
-	local bIsDone2 = self:IsDone(rTbl2)
+	local bIsDone1 = self:IsDone(rTbl1) and not self:IsAttended(rTbl1)
+	local bIsDone2 = self:IsDone(rTbl2) and not self:IsAttended(rTbl2)
 	if bIsDone1 and not bIsDone2 then return 1 end
 	if not bIsDone1 and bIsDone2 then return -1 end
 	return 0
@@ -428,7 +426,10 @@ function EssenceEventTracker:OnDocumentReady()
 		return
 	end
 	Apollo.RegisterEventHandler("ChannelUpdate_Loot", "OnItemGained", self)
-
+	Apollo.RegisterEventHandler("MatchEntered", "OnMatchEntered", self)
+	Apollo.RegisterEventHandler("MatchLeft", "OnMatchLeft", self)
+	Apollo.RegisterEventHandler("MatchFinished", "OnMatchFinished", self)
+	
 	Apollo.RegisterEventHandler("ObjectiveTrackerLoaded", "OnObjectiveTrackerLoaded", self)
 	Event_FireGenericEvent("ObjectiveTracker_RequestParent")
 	self.bIsLoaded = true
@@ -646,21 +647,8 @@ function EssenceEventTracker:RedrawAll()
 	self.nDoneCounting = nDone
 end
 
-function EssenceEventTracker:IsDone(rTbl)
-	local tRewardEnds = self.tEventsDone[rTbl.src.nContentId]
-	if not tRewardEnds then return false end
-
-	local tEnd = tRewardEnds[rTbl.tReward.nRewardType]
-	if not tEnd then return false end
-
-	local fEnd = tEnd.nGameTime
-	if not fEnd then return false end
-	
-	return math.abs(fEnd - rTbl.fEndTime) < 60
-end
-
 function EssenceEventTracker:DrawRotation(rTbl, nAvailable, nDone)
-	local bDone = self:IsDone(rTbl)
+	local bDone = self:IsDone(rTbl) and not self:IsAttended(rTbl)
 	local wndContainer = bDone and self.wndContainerDone or self.wndContainerAvailable
 	local idx = bDone and nDone+1 or nAvailable+1
 	while not wndContainer:GetChildren()[idx] do
@@ -677,7 +665,11 @@ function EssenceEventTracker:DrawRotation(rTbl, nAvailable, nDone)
 		wndForm:FindChild("EssenceIcon"):SetTooltip("")
 	end
 	wndForm:FindChild("ControlBackerBtn:TimeText"):SetText(self:HelperTimeString(rTbl.fEndTime-GameLib.GetGameTime()))
-	wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorizeIf(rTbl.strText, kstrColors.kstrRed, bDone))
+	if self:IsAttended(rTbl) then
+		wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorize(rTbl.strText, kstrColors.kstrYellow))
+	else
+		wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorizeIf(rTbl.strText, kstrColors.kstrRed, bDone))
+	end
 	wndForm:SetData(rTbl)
 	
 	--returns nAvailable, nDone (incremented accordingly)
@@ -796,28 +788,69 @@ do
 			parentZoneId = nil,	id = 103,	nContentId = 40,	nContentType = 5,	nBase = 300,
 		},
 	}
+	
+	function EssenceEventTracker:GetCurrentInstance()
+		local zone = GameLib.GetCurrentZoneMap()
+		if not instances[zone.continentId] then return nil end
+
+		local inst;
+		if #instances[zone.continentId] > 0 then
+			for _, instance in ipairs(instances[zone.continentId]) do
+				if (not instance.parentZoneId or instance.parentZoneId==zone.parentZoneId) and (not instance.id or instance.id==zone.id) then
+					return instance
+				end
+			end
+		else
+			local instance = instances[zone.continentId]
+			if (not instance.parentZoneId or instance.parentZoneId==zone.parentZoneId) and (not instance.id or instance.id==zone.id) then
+				return instance
+			end
+		end
+		return nil
+	end
+	
+	function EssenceEventTracker:OnMatchEntered() --no args
+		Apollo.RegisterEventHandler("SubZoneChanged", "OnEnteredMatchZone", self)
+	end
+	
+	function EssenceEventTracker:OnEnteredMatchZone() --OnSubZoneChanged
+		Apollo.RemoveEventHandler("SubZoneChanged", self)
+		
+		self:ClearAttendings() --this triggers the first redraw... of possibly MANY - do we want to prevent this?
+		local inst = self:GetCurrentInstance()
+		
+		--check normal instances
+		for nRewardType, rTbl in pairs(self.tContentIds[inst.nContentId] or {}) do
+			if not self:IsDone(rTbl) and self:CheckVeteran(rTbl.src.bIsVeteran) then
+				if nRewardType == ktRewardTypes.Multiplier then
+					self:MarkAsDone(rTbl)
+				end
+				self:MarkAsAttended(rTbl)
+			end
+		end
+		
+		--check queues
+		for nRewardType, rTbl in pairs(self.tContentIds[46] or {}) do --46 = Random Queue - usually normal dungeon with rewardType 1 (100 purples)
+			if not self:IsDone(rTbl) and self:CheckVeteran(rTbl.src.bIsVeteran) and rTbl.src.eMatchType ~= inst.nContentType then
+				if nRewardType == ktRewardTypes.Multiplier then --include this, even if it was not yet a thing
+					self:MarkAsDone(rTbl)
+				end
+				self:MarkAsAttended(rTbl)
+			end
+		end
+	end
+	
+	function EssenceEventTracker:OnMatchLeft(...)
+		self:ClearAttendings() print("left", ...)
+	end
+	function EssenceEventTracker:OnMatchFinished(...)
+		self:ClearAttendings() print("finished",...)
+	end
 
 	function EssenceEventTracker:GainedEssence(tMoney)
 		if GroupLib.InInstance() then--Expedition? Dungeon? (Queued Normal Dungeon?)
-			local zone = GameLib.GetCurrentZoneMap()
-			if not instances[zone.continentId] then return end
-
-			local inst;
-			if #instances[zone.continentId] > 0 then
-				for _, instance in ipairs(instances[zone.continentId]) do
-					if (not instance.parentZoneId or instance.parentZoneId==zone.parentZoneId) and (not instance.id or instance.id==zone.id) then
-						inst = instance
-						break;
-					end
-				end
-			else
-				local instance = instances[zone.continentId]
-				if (not instance.parentZoneId or instance.parentZoneId==zone.parentZoneId) and (not instance.id or instance.id==zone.id) then
-					inst = instance
-				end
-			end
+			local inst = self:GetCurrentInstance()
 			if not inst then return end
-
 
 			--we ARE in inst! Pass to other function, because we only wanna detect in this function
 			self:EssenceInInstance(tMoney, inst.nContentId, inst.nBase)
@@ -845,56 +878,35 @@ do
 
 	function EssenceEventTracker:EssenceInInstance(tMoney, nContentId, nBase)
 		local nRewardType = validCurrencies[tMoney:GetAccountCurrencyType()]
+		if nRewardType ~= ktRewardTypes.Additon then return end --all the multipliers are already done on attending.
+		
 		local rTbl = self.tContentIds[nContentId] and self.tContentIds[nContentId][nRewardType]
-		if not rTbl or not self:CheckVeteran(rTbl.src.bIsVeteran) then return end
+		if not rTbl or not self:CheckVeteran(rTbl.src.bIsVeteran) or not self:IsAttended(rTbl) then return end
 
 		if tMoney:GetAccountCurrencyType() ~= rTbl.tReward.monReward:GetAccountCurrencyType() then return end
 
-		if nRewardType == 1 then --no multiplicator (purple essences)
-			local fSignature = AccountItemLib.GetPremiumTier() > 0 and 1.5 or 1
-			local approx = rTbl.tReward.monReward:GetAmount() * fSignature
+		local fSignature = AccountItemLib.GetPremiumTier() > 0 and 1.5 or 1
+		local approx = rTbl.tReward.monReward:GetAmount() * fSignature
 
-			if closeEnough(approx, tMoney:GetAmount()) then
-				self:MarkAsDone(rTbl)
-			end
-		else --nRewardType == 2
-			local nMultiplier = rTbl.tReward.nMultiplier
-			local fPrime = 1+0.1*GameLib.GetWorldPrimeLevel()
-			local fSignature = AccountItemLib.GetPremiumTier() > 0 and 1.5 or 1
-
-			local approx = nBase * nMultiplier * fPrime * fSignature
-
-			if closeEnough(approx, tMoney:GetAmount()) or closeEnough(2*approx, tMoney:GetAmount()) then -- last event grants double points
-				self:MarkAsDone(rTbl)
-			end
+		if closeEnough(approx, tMoney:GetAmount()) then
+			self:MarkAsDone(rTbl)
 		end
 	end
 
 	function EssenceEventTracker:EssenceInQueue(tMoney, nContentType, nBase)
 		local nRewardType = validCurrencies[tMoney:GetAccountCurrencyType()]
+		if nRewardType ~= ktRewardTypes.Additon then return end --all the multipliers are already done on attending.
+		
 		local rTbl = self.tContentIds[46] and self.tContentIds[46][nRewardType] --46 = Random Queue - usually normal dungeon with rewardType 1 (100 purples)
-
-    if not rTbl or rTbl.src.eMatchType ~= nContentType or not self:CheckVeteran(rTbl.src.bIsVeteran) then return end
+		if not rTbl or rTbl.src.eMatchType ~= nContentType or not self:CheckVeteran(rTbl.src.bIsVeteran) or not self:IsAttended(rTbl) then return end
 
 		if tMoney:GetAccountCurrencyType() ~= rTbl.tReward.monReward:GetAccountCurrencyType() then return end
 
-		if nRewardType == 1 then --no multiplicator (purple essences)
-			local fSignature = AccountItemLib.GetPremiumTier() > 0 and 1.5 or 1
-			local approx = rTbl.tReward.monReward:GetAmount() * fSignature
+		local fSignature = AccountItemLib.GetPremiumTier() > 0 and 1.5 or 1
+		local approx = rTbl.tReward.monReward:GetAmount() * fSignature
 
-			if closeEnough(approx, tMoney:GetAmount()) then
-				self:MarkAsDone(rTbl)
-			end
-		else --nRewardType == 2
-			local nMultiplier = rTbl.tReward.nMultiplier
-			local fPrime = 1+0.1*GameLib.GetWorldPrimeLevel()
-			local fSignature = AccountItemLib.GetPremiumTier() > 0 and 1.5 or 1
-
-			local approx = nBase * nMultiplier * fPrime * fSignature
-
-			if closeEnough(approx, tMoney:GetAmount()) or closeEnough(2*approx, tMoney:GetAmount()) then -- last event grants double points
-				self:MarkAsDone(rTbl)
-			end
+		if closeEnough(approx, tMoney:GetAmount()) then
+			self:MarkAsDone(rTbl)
 		end
 	end
 end
@@ -916,6 +928,46 @@ function EssenceEventTracker:MarkAsDone(rTbl, bToggle)
 
 	self:UpdateAll()
 	self:UpdateFeaturedList()
+end
+
+
+function EssenceEventTracker:IsDone(rTbl)
+	local tRewardEnds = self.tEventsDone[rTbl.src.nContentId]
+	if not tRewardEnds then return false end
+
+	local tEnd = tRewardEnds[rTbl.tReward.nRewardType]
+	if not tEnd then return false end
+
+	local fEnd = tEnd.nGameTime
+	if not fEnd then return false end
+	
+	return math.abs(fEnd - rTbl.fEndTime) < 60
+end
+
+function EssenceEventTracker:ClearAttendings()
+	self.tEventsAttending = {}
+	self:UpdateAll()
+	self:UpdateFeaturedList()
+end
+
+function EssenceEventTracker:MarkAsAttended(rTbl)
+	local cId, rId = rTbl.src.nContentId, rTbl.tReward.nRewardType
+	
+	self.tEventsAttending[cId] = self.tEventsAttending[cId] or {}
+	self.tEventsAttending[cId][rId] = rTbl.fEndTime
+	
+	self:UpdateAll()
+	self:UpdateFeaturedList()
+end
+
+function EssenceEventTracker:IsAttended(rTbl)
+	local tAttendEndings = self.tEventsAttending[rTbl.src.nContentId]
+	if not tAttendEndings then return false end
+	
+	local fEnd = tAttendEndings[rTbl.tReward.nRewardType]
+	if not fEnd then return false end
+	
+	return math.abs(fEnd - rTbl.fEndTime) < 60
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -1016,9 +1068,13 @@ function EssenceEventTracker:HelperTimeString(fTime, strColorOverride)
 	return string.format("<T Font=\"CRB_InterfaceMedium_B\" TextColor=\"%s\">(%s)</T>", strColor, strTime)
 end
 
+function EssenceEventTracker:HelperColorize(str, strColor)
+	return string.format("<T TextColor=\"%s\">%s</T>", strColor, str)
+end
+
 function EssenceEventTracker:HelperColorizeIf(str, strColor, bIf)
 	if bIf then
-		return string.format("<T TextColor=\"%s\">%s</T>", strColor, str)
+		return self:HelperColorize(str, strColor)
 	else
 		return str
 	end
