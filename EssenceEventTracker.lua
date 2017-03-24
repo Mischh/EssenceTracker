@@ -21,7 +21,10 @@ local keFeaturedSort = {
 	Multiplier = knExtraSortBaseValue + 0,
 	Color = knExtraSortBaseValue + 1,
 }
-
+local ktRewardTypes = {
+	Multiplier = 2,
+	Addition = 1,
+}
 local ktMatchTypeNames = {
 	[MatchMakingLib.MatchType.Shiphand] 		= Apollo.GetString("MatchMaker_Shiphands"),
 	[MatchMakingLib.MatchType.Adventure] 		= Apollo.GetString("MatchMaker_Adventures"),
@@ -491,13 +494,13 @@ function EssenceEventTracker:IsInterestingRotation(rot)
 	-- rotation.arRewards = {monReward = userdata, nMultiplier=1/./nil, nRewardItemType=3/nil, nRewardType=1/2, nSecondsRemaining=0, strIcon = ""}
 		--nRewardType = 1=Additive, 2=Multiplicative
 		--nRewardItemType = 3=Violet, nil=uninteresting?
-	return not(#rot.arRewards < 1 or #rot.arRewards <= 1 and rot.arRewards[1].nRewardType == 2 and rot.arRewards[1].nMultiplier <= 1)
+	return not(#rot.arRewards < 1 or #rot.arRewards <= 1 and rot.arRewards[1].nRewardType == ktRewardTypes.Multiplier and rot.arRewards[1].nMultiplier <= 1)
 end
 
 function EssenceEventTracker:BuildRotationTable( rot )
 	local redo = false
 	for _, reward in ipairs(rot.arRewards) do
-		if reward.nRewardType == 1 or reward.nRewardType == 2 and reward.nMultiplier > 1 then
+		if reward.nRewardType == ktRewardTypes.Addition or reward.nRewardType == ktRewardTypes.Multiplier and reward.nMultiplier > 1 then
 			local rTbl = { --usually called 'rTbl'
 				strText = "["..ktShortContentTypes[rot.nContentType].."] "..self:GetTitle(rot),
 				fEndTime = (reward and reward.nSecondsRemaining or 0) + GameLib.GetGameTime(),
@@ -666,9 +669,9 @@ function EssenceEventTracker:DrawRotation(rTbl, nAvailable, nDone)
 	local wndForm = wndContainer:GetChildren()[idx]
 	wndForm:FindChild("EssenceIcon"):SetSprite(rTbl.strIcon)
 	wndForm:FindChild("EssenceIcon"):SetText(rTbl.strMult)
-	if rTbl.tReward.nRewardType == 1 then -- example: 400 Purple Essence
+	if rTbl.tReward.nRewardType == ktRewardTypes.Addition then -- example: 400 Purple Essence
 		wndForm:FindChild("EssenceIcon"):SetTooltip(rTbl.tReward.monReward:GetMoneyString())
-	elseif rTbl.tReward.nRewardType == 2 then --example: 4x Green Essence
+	elseif rTbl.tReward.nRewardType == ktRewardTypes.Multiplier then --example: 4x Green Essence
 		wndForm:FindChild("EssenceIcon"):SetTooltip(rTbl.tReward.nMultiplier.."x "..rTbl.tReward.monReward:GetTypeString())
 	else --remove
 		wndForm:FindChild("EssenceIcon"):SetTooltip("")
