@@ -412,7 +412,7 @@ function EssenceEventTracker:OnRestore(eType, tSavedData)
 			for i, tRewardEnds in pairs(tSavedData.tEventsDone or {}) do
 				self.tEventsDone[i] = {}
 				for j, v in pairs(tRewardEnds) do
-					self.tEventsDone[i][j] = self:AdjustDateTable(v, a, b)
+					self.tEventsDone[i][j],a,b = self:AdjustDateTable(v, a, b)
 				end
 			end
 
