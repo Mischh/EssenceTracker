@@ -406,24 +406,18 @@ function EssenceEventTracker:OnRestore(eType, tSavedData)
 				end
 			end
 		elseif tSavedData._version == 2 then
-			local fNow = GameLib.GetGameTime()
-			local tNow = GameLib.GetServerTime()
+			local a,b --passthrough for :AdjustDateTable
 
 			self.tEventsDone = {}
 			for i, tRewardEnds in pairs(tSavedData.tEventsDone or {}) do
 				self.tEventsDone[i] = {}
 				for j, v in pairs(tRewardEnds) do
-					self.tEventsDone[i][j] = self:AdjustDateTable(v, fNow, tNow)
+					self.tEventsDone[i][j] = self:AdjustDateTable(v, a, b)
 				end
 			end
 			
-			self.tEventsAttending = {}
-			for i, tAttendingEnds in pairs(tSavedData.tEventsAttending or {}) do
-				self.tEventsAttending[i] = {}
-				for j, v in pairs(tAttendingEnds) do
-					self.tEventsAttending[i][j] = self:AdjustDateTable(v, fNow, tNow)
-				end
-			end
+			self.tEventsAttending = tSavedData.tEventsAttending or {}
+			self:CheckRestoredAttendingEvents()
 		end
 	end
 end
@@ -435,7 +429,6 @@ function EssenceEventTracker:OnDocumentReady()
 	end
 	Apollo.RegisterEventHandler("ChannelUpdate_Loot", "OnItemGained", self)
 	Apollo.RegisterEventHandler("MatchEntered", "OnMatchEntered", self)
-	Apollo.RegisterEventHandler("MatchLeft", "OnMatchLeft", self)
 	Apollo.RegisterEventHandler("MatchFinished", "OnMatchFinished", self)
 	
 	Apollo.RegisterEventHandler("ObjectiveTrackerLoaded", "OnObjectiveTrackerLoaded", self)
@@ -799,6 +792,7 @@ do
 	
 	function EssenceEventTracker:GetCurrentInstance()
 		local zone = GameLib.GetCurrentZoneMap()
+		if not zone then return nil, true end --return nil, bNoZone
 		if not instances[zone.continentId] then return nil end
 
 		local inst;
@@ -833,7 +827,7 @@ do
 				if nRewardType == ktRewardTypes.Multiplier then
 					self:MarkAsDone(rTbl)
 				end
-				self:MarkAsAttended(rTbl)
+				self:MarkAsAttended(rTbl, inst.nContentId)
 			end
 		end
 		
@@ -843,16 +837,18 @@ do
 				if nRewardType == ktRewardTypes.Multiplier then --include this, even if it was not yet a thing
 					self:MarkAsDone(rTbl)
 				end
-				self:MarkAsAttended(rTbl)
+				self:MarkAsAttended(rTbl, inst.nContentId)
 			end
 		end
 	end
 	
-	function EssenceEventTracker:OnMatchLeft(...)
-		self:ClearAttendings() print("left", ...)
+	function EssenceEventTracker:OnMatchFinished()
+		self.afterMatchFinishedTimer = ApolloTimer.Create(0, false, "AfterMatchFinished", self)
 	end
-	function EssenceEventTracker:OnMatchFinished(...)
-		self:ClearAttendings() print("finished",...)
+	
+	function EssenceEventTracker:AfterMatchFinished()
+		self.afterMatchFinishedTimer = nil
+		self:ClearAttendings()
 	end
 
 	function EssenceEventTracker:GainedEssence(tMoney)
@@ -958,11 +954,13 @@ function EssenceEventTracker:ClearAttendings()
 	self:UpdateFeaturedList()
 end
 
-function EssenceEventTracker:MarkAsAttended(rTbl)
+function EssenceEventTracker:MarkAsAttended(rTbl, nContentId)
 	local cId, rId = rTbl.src.nContentId, rTbl.tReward.nRewardType
 	
 	self.tEventsAttending[cId] = self.tEventsAttending[cId] or {}
 	self.tEventsAttending[cId][rId] = self:BuildDateTable(rTbl.fEndTime)
+	
+	self.tEventsAttending[cId][rId].nInstanceContentId = nContentId
 	
 	self:UpdateAll()
 	self:UpdateFeaturedList()
@@ -979,6 +977,28 @@ function EssenceEventTracker:IsAttended(rTbl)
 	if not fEnd then return false end
 	
 	return math.abs(fEnd - rTbl.fEndTime) < 60
+end
+
+function EssenceEventTracker:CheckRestoredAttendingEvents()
+	local inst, bFailed = self:GetCurrentInstance()
+	if bFailed then
+		self.checkRestoredAttendingEventsTimer = self.checkRestoredAttendingEventsTimer or ApolloTimer.Create(0.1, true, "CheckRestoredAttendingEvents", self)
+	else
+		self.checkRestoredAttendingEventsTimer = self.checkRestoredAttendingEventsTimer and self.checkRestoredAttendingEventsTimer:Stop() and nil
+	end
+
+	if not self.tEventsAttending or not next(self.tEventsAttending) then return end
+	local temp,a,b = self.tEventsAttending,nil,nil --a,b just passthrough for AdjustDateTable
+	self.tEventsAttending = {}
+	for cId, tEnd in pairs(temp) do
+		for rId, tDate in pairs(tEnd) do
+			if tDate.nInstanceContentId == inst.nContentId then
+				self.tEventsAttending[cId][rId],a,b = self:AdjustDateTable(tDate,a,b)
+				self.tEventsAttending[cId][rId].nInstanceContentId = inst.nContentId
+			end
+		end
+	end
+	
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -1130,7 +1150,7 @@ do
 		tNow = tNow or GameLib.GetServerTime()
 
 		tTime.nGameTime = fNow+self:CompareDateTables(tNow, tTime)
-		return tTime
+		return tTime, fNow, tNow
 	end
 
 	function EssenceEventTracker:CompareDateTables(date1, date2) --returns seconds between date1 and date2
