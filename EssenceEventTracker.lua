@@ -415,7 +415,7 @@ function EssenceEventTracker:OnRestore(eType, tSavedData)
 					self.tEventsDone[i][j] = self:AdjustDateTable(v, a, b)
 				end
 			end
-			
+
 			self.tEventsAttending = tSavedData.tEventsAttending or {}
 			self:CheckRestoredAttendingEvents()
 		end
@@ -430,7 +430,7 @@ function EssenceEventTracker:OnDocumentReady()
 	Apollo.RegisterEventHandler("ChannelUpdate_Loot", "OnItemGained", self)
 	Apollo.RegisterEventHandler("MatchEntered", "OnMatchEntered", self)
 	Apollo.RegisterEventHandler("MatchFinished", "OnMatchFinished", self)
-	
+
 	Apollo.RegisterEventHandler("ObjectiveTrackerLoaded", "OnObjectiveTrackerLoaded", self)
 	Event_FireGenericEvent("ObjectiveTracker_RequestParent")
 	self.bIsLoaded = true
@@ -580,26 +580,26 @@ function EssenceEventTracker:RedrawAll()
 	local bStartingShown = self.wndMain:IsShown()
 
 	local nAvailable, nDone = 0,0
-	
+
 	for i, rTbl in ipairs(self.tRotations) do
 		nAvailable, nDone = self:DrawRotation(rTbl, nAvailable, nDone)
 	end
-	
+
 	local tAvailableChildren = self.wndContainerAvailable:GetChildren()
 	for i = nAvailable+1, #tAvailableChildren, 1 do
 		tAvailableChildren[i]:Destroy()
 	end
-	
+
 	local tDoneChildren = self.wndContainerDone:GetChildren()
 	for i = nDone+1, #tDoneChildren, 1 do
 		tDoneChildren[i]:Destroy()
 	end
-	
+
 	if self.bShow then
 		if self.tMinimized.bRoot then
 			self.wndContainerAvailable:Show(false)
 			self.wndContainerDone:Show(false)
-			
+
 			local nLeft, nOffset, nRight = self.wndMain:GetAnchorOffsets() --current location
 			local _, nTop, _, nBottom = self.wndMain:GetOriginalLocation():GetOffsets()
 			self.wndMain:SetAnchorOffsets(nLeft, nOffset, nRight, nOffset + nBottom - nTop)
@@ -609,27 +609,27 @@ function EssenceEventTracker:RedrawAll()
 				return self.tCustomSortFunctions[self.eSort](self, wndA:GetData(), wndB:GetData())
 			end)
 			self.wndContainerAvailable:SetAnchorOffsets(0,0,0,nAvailableHeight)
-			
+
 			if self.tMinimized.bDoneRoot then
 				self.wndContainerDone:SetAnchorOffsets(0,0,0,0)
-			else			
+			else
 				local nDoneHeight = self.wndContainerDone:ArrangeChildrenVert(Window.CodeEnumArrangeOrigin.LeftOrTop, function(wndA, wndB)
 					return self.tCustomSortFunctions[self.eSort](self, wndA:GetData(), wndB:GetData())
 				end)
 				self.wndContainerDone:SetAnchorOffsets(0,0,0,nDoneHeight)
 			end
-			
+
 			self.wndContainerAvailable:Show(true)
 			self.wndContainerDone:Show(true)
-			
+
 			local nHeight = self.wndMain:ArrangeChildrenVert()
-			
+
 			local nLeft, nTop, nRight, _ = self.wndMain:GetAnchorOffsets()
 			self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, nTop+nHeight)
 		end
 	end
 	self.wndMain:Show(self.bShow)
-	
+
 	if nStartingHeight ~= self.wndMain:GetHeight() or self.nAvailableCounting ~= nAvailable or self.nDoneCounting ~= nDone or self.bShow ~= bStartingShown then
 		local tData =
 		{
@@ -672,7 +672,7 @@ function EssenceEventTracker:DrawRotation(rTbl, nAvailable, nDone)
 		wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorizeIf(rTbl.strText, kstrColors.kstrRed, bDone))
 	end
 	wndForm:SetData(rTbl)
-	
+
 	--returns nAvailable, nDone (incremented accordingly)
 	return (bDone and nAvailable or idx), (bDone and idx or nDone)
 end
@@ -789,7 +789,7 @@ do
 			parentZoneId = nil,	id = 103,	nContentId = 40,	nContentType = 5,	nBase = 300,
 		},
 	}
-	
+
 	function EssenceEventTracker:GetCurrentInstance()
 		local zone = GameLib.GetCurrentZoneMap()
 		if not zone then return nil, true end --return nil, bNoZone
@@ -810,17 +810,17 @@ do
 		end
 		return nil
 	end
-	
+
 	function EssenceEventTracker:OnMatchEntered() --no args
 		Apollo.RegisterEventHandler("SubZoneChanged", "OnEnteredMatchZone", self)
 	end
-	
+
 	function EssenceEventTracker:OnEnteredMatchZone() --OnSubZoneChanged
 		Apollo.RemoveEventHandler("SubZoneChanged", self)
-		
+
 		self:ClearAttendings() --this triggers the first redraw... of possibly MANY - do we want to prevent this?
 		local inst = self:GetCurrentInstance()
-		
+
 		--check normal instances
 		for nRewardType, rTbl in pairs(self.tContentIds[inst.nContentId] or {}) do
 			if not self:IsDone(rTbl) and self:CheckVeteran(rTbl.src.bIsVeteran) then
@@ -830,7 +830,7 @@ do
 				self:MarkAsAttended(rTbl, inst.nContentId)
 			end
 		end
-		
+
 		--check queues
 		for nRewardType, rTbl in pairs(self.tContentIds[46] or {}) do --46 = Random Queue - usually normal dungeon with rewardType 1 (100 purples)
 			if not self:IsDone(rTbl) and self:CheckVeteran(rTbl.src.bIsVeteran) and rTbl.src.eMatchType == inst.nContentType then
@@ -841,11 +841,11 @@ do
 			end
 		end
 	end
-	
+
 	function EssenceEventTracker:OnMatchFinished()
 		self.afterMatchFinishedTimer = ApolloTimer.Create(0, false, "AfterMatchFinished", self)
 	end
-	
+
 	function EssenceEventTracker:AfterMatchFinished()
 		self.afterMatchFinishedTimer = nil
 		self:ClearAttendings()
@@ -883,7 +883,7 @@ do
 	function EssenceEventTracker:EssenceInInstance(tMoney, nContentId, nBase)
 		local nRewardType = validCurrencies[tMoney:GetAccountCurrencyType()]
 		if nRewardType ~= ktRewardTypes.Additon then return end --all the multipliers are already done on attending.
-		
+
 		local rTbl = self.tContentIds[nContentId] and self.tContentIds[nContentId][nRewardType]
 		if not rTbl or not self:CheckVeteran(rTbl.src.bIsVeteran) or not self:IsAttended(rTbl) then return end
 
@@ -900,7 +900,7 @@ do
 	function EssenceEventTracker:EssenceInQueue(tMoney, nContentType, nBase)
 		local nRewardType = validCurrencies[tMoney:GetAccountCurrencyType()]
 		if nRewardType ~= ktRewardTypes.Additon then return end --all the multipliers are already done on attending.
-		
+
 		local rTbl = self.tContentIds[46] and self.tContentIds[46][nRewardType] --46 = Random Queue - usually normal dungeon with rewardType 1 (100 purples)
 		if not rTbl or rTbl.src.eMatchType ~= nContentType or not self:CheckVeteran(rTbl.src.bIsVeteran) or not self:IsAttended(rTbl) then return end
 
@@ -944,7 +944,7 @@ function EssenceEventTracker:IsDone(rTbl)
 
 	local fEnd = tEnd.nGameTime
 	if not fEnd then return false end
-	
+
 	return math.abs(fEnd - rTbl.fEndTime) < 60
 end
 
@@ -956,12 +956,12 @@ end
 
 function EssenceEventTracker:MarkAsAttended(rTbl, nContentId)
 	local cId, rId = rTbl.src.nContentId, rTbl.tReward.nRewardType
-	
+
 	self.tEventsAttending[cId] = self.tEventsAttending[cId] or {}
 	self.tEventsAttending[cId][rId] = self:BuildDateTable(rTbl.fEndTime)
-	
+
 	self.tEventsAttending[cId][rId].nInstanceContentId = nContentId
-	
+
 	self:UpdateAll()
 	self:UpdateFeaturedList()
 end
@@ -969,13 +969,13 @@ end
 function EssenceEventTracker:IsAttended(rTbl)
 	local tAttendEndings = self.tEventsAttending[rTbl.src.nContentId]
 	if not tAttendEndings then return false end
-	
+
 	local tEnd = tAttendEndings[rTbl.tReward.nRewardType]
 	if not tEnd then return false end
-	
+
 	local fEnd = tEnd.nGameTime
 	if not fEnd then return false end
-	
+
 	return math.abs(fEnd - rTbl.fEndTime) < 60
 end
 
@@ -998,7 +998,7 @@ function EssenceEventTracker:CheckRestoredAttendingEvents()
 			end
 		end
 	end
-	
+
 end
 
 ---------------------------------------------------------------------------------------------------
