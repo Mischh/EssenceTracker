@@ -795,7 +795,6 @@ do
 		if not zone then return nil, true end --return nil, bNoZone
 		if not instances[zone.continentId] then return nil end
 
-		local inst;
 		if #instances[zone.continentId] > 0 then
 			for _, instance in ipairs(instances[zone.continentId]) do
 				if (not instance.parentZoneId or instance.parentZoneId==zone.parentZoneId) and (not instance.id or instance.id==zone.id) then
