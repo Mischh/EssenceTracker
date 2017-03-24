@@ -252,7 +252,7 @@ function EssenceEventTracker:SortByContentType(rTbl1, rTbl2)
 	if nCompare ~= 0 then return nCompare < 0 end
 	nCompare = self:CompareByMultiplier(rTbl1, rTbl2)
 	if nCompare ~= 0 then return nCompare < 0 end
-	return self:CompareByContentId(rTbl1, rTbl2) > 0
+	return self:CompareByContentId(rTbl1, rTbl2) < 0
 end
 
 function EssenceEventTracker:SortByTimeRemaining(rTbl1, rTbl2)
@@ -264,19 +264,19 @@ function EssenceEventTracker:SortByTimeRemaining(rTbl1, rTbl2)
 	if nCompare ~= 0 then return nCompare < 0 end
 	nCompare = self:CompareByContentType(rTbl1, rTbl2)
 	if nCompare ~= 0 then return nCompare < 0 end
-	return self:CompareByContentId(rTbl1, rTbl2) > 0
+	return self:CompareByContentId(rTbl1, rTbl2) < 0
 end
 
 function EssenceEventTracker:SortByMultiplier(rTbl1, rTbl2)
 	local nCompare = self:CompareCompletedStatus(rTbl1, rTbl2)
 	if nCompare ~= 0 then return nCompare < 0 end
 	nCompare = self:CompareByMultiplier(rTbl1, rTbl2)
-	if nCompare ~= 0 then return nCompare > 0 end
+	if nCompare ~= 0 then return nCompare < 0 end
 	nCompare = self:CompareByTimeRemaining(rTbl1, rTbl2)
-	if nCompare ~= 0 then return nCompare > 0 end
+	if nCompare ~= 0 then return nCompare < 0 end
 	nCompare = self:CompareByContentType(rTbl1, rTbl2)
 	if nCompare ~= 0 then return nCompare < 0 end
-	return self:CompareByContentId(rTbl1, rTbl2) > 0
+	return self:CompareByContentId(rTbl1, rTbl2) < 0
 end
 
 function EssenceEventTracker:SortByColor(rTbl1, rTbl2)
@@ -285,10 +285,10 @@ function EssenceEventTracker:SortByColor(rTbl1, rTbl2)
 	nCompare = self:CompareByColor(rTbl1, rTbl2)
 	if nCompare ~= 0 then return nCompare < 0 end
 	nCompare = self:CompareByMultiplier(rTbl1, rTbl2)
-	if nCompare ~= 0 then return nCompare > 0 end
+	if nCompare ~= 0 then return nCompare < 0 end
 	nCompare = self:CompareByContentType(rTbl1, rTbl2)
 	if nCompare ~= 0 then return nCompare < 0 end
-	return self:CompareByContentId(rTbl1, rTbl2) > 0
+	return self:CompareByContentId(rTbl1, rTbl2) < 0
 end
 
 function EssenceEventTracker:CompareByContentType(rTbl1, rTbl2)
