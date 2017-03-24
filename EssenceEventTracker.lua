@@ -373,8 +373,8 @@ function EssenceEventTracker:OnSave(eType)
 	elseif eType == GameLib.CodeEnumAddonSaveLevel.Realm then
 		return {
 			_version = 2,
-			tDate = GameLib.GetServerTime(),
 			tEventsDone = self.tEventsDone,
+			tEventsAttending = self.tEventsAttending,
 		}
 	end
 end
@@ -399,7 +399,7 @@ function EssenceEventTracker:OnRestore(eType, tSavedData)
 			local offset = self:CompareDateTables(tSavedData.tDate, tNow)
 
 			self.tEventsDone = {}
-			for i, tRewardEnds in pairs(tSavedData.tEventsDone) do
+			for i, tRewardEnds in pairs(tSavedData.tEventsDone or {}) do
 				self.tEventsDone[i] = {}
 				for j, v in pairs(tRewardEnds) do
 					self.tEventsDone[i][j] = self:BuildDateTable(v-offset, fNow, tNow)
@@ -410,10 +410,18 @@ function EssenceEventTracker:OnRestore(eType, tSavedData)
 			local tNow = GameLib.GetServerTime()
 
 			self.tEventsDone = {}
-			for i, tRewardEnds in pairs(tSavedData.tEventsDone) do
+			for i, tRewardEnds in pairs(tSavedData.tEventsDone or {}) do
 				self.tEventsDone[i] = {}
 				for j, v in pairs(tRewardEnds) do
 					self.tEventsDone[i][j] = self:AdjustDateTable(v, fNow, tNow)
+				end
+			end
+			
+			self.tEventsAttending = {}
+			for i, tAttendingEnds in pairs(tSavedData.tEventsAttending or {}) do
+				self.tEventsAttending[i] = {}
+				for j, v in pairs(tAttendingEnds) do
+					self.tEventsAttending[i][j] = self:AdjustDateTable(v, fNow, tNow)
 				end
 			end
 		end
@@ -831,7 +839,7 @@ do
 		
 		--check queues
 		for nRewardType, rTbl in pairs(self.tContentIds[46] or {}) do --46 = Random Queue - usually normal dungeon with rewardType 1 (100 purples)
-			if not self:IsDone(rTbl) and self:CheckVeteran(rTbl.src.bIsVeteran) and rTbl.src.eMatchType ~= inst.nContentType then
+			if not self:IsDone(rTbl) and self:CheckVeteran(rTbl.src.bIsVeteran) and rTbl.src.eMatchType == inst.nContentType then
 				if nRewardType == ktRewardTypes.Multiplier then --include this, even if it was not yet a thing
 					self:MarkAsDone(rTbl)
 				end
@@ -954,7 +962,7 @@ function EssenceEventTracker:MarkAsAttended(rTbl)
 	local cId, rId = rTbl.src.nContentId, rTbl.tReward.nRewardType
 	
 	self.tEventsAttending[cId] = self.tEventsAttending[cId] or {}
-	self.tEventsAttending[cId][rId] = rTbl.fEndTime
+	self.tEventsAttending[cId][rId] = self:BuildDateTable(rTbl.fEndTime)
 	
 	self:UpdateAll()
 	self:UpdateFeaturedList()
@@ -964,7 +972,10 @@ function EssenceEventTracker:IsAttended(rTbl)
 	local tAttendEndings = self.tEventsAttending[rTbl.src.nContentId]
 	if not tAttendEndings then return false end
 	
-	local fEnd = tAttendEndings[rTbl.tReward.nRewardType]
+	local tEnd = tAttendEndings[rTbl.tReward.nRewardType]
+	if not tEnd then return false end
+	
+	local fEnd = tEnd.nGameTime
 	if not fEnd then return false end
 	
 	return math.abs(fEnd - rTbl.fEndTime) < 60
