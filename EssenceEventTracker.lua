@@ -842,7 +842,7 @@ do
 	end
 
 	function EssenceEventTracker:OnMatchFinished()
-		self.afterMatchFinishedTimer = ApolloTimer.Create(0, false, "AfterMatchFinished", self)
+		self.afterMatchFinishedTimer = ApolloTimer.Create(1, false, "AfterMatchFinished", self)
 	end
 
 	function EssenceEventTracker:AfterMatchFinished()
