@@ -5,6 +5,7 @@ local EssenceEventTracker = {}
 
 local kstrAddon = "EssenceTracker"
 local lstrAddon = "Essence Tracker"
+local lstrWndMgmtName = "Essence Loot Display"
 
 local ktShortContentTypes = {
 	[1] = "Dng",
@@ -431,6 +432,7 @@ function EssenceEventTracker:OnDocumentReady()
 
 	Apollo.RegisterEventHandler("ObjectiveTrackerLoaded", "OnObjectiveTrackerLoaded", self)
 	Event_FireGenericEvent("ObjectiveTracker_RequestParent")
+	self:SetupEssenceDisplay()
 	self.bIsLoaded = true
 end
 
@@ -483,6 +485,42 @@ function EssenceEventTracker:ToggleShowEssenceTracker()
 	self.bShow = not self.bShow
 
 	self:UpdateAll()
+end
+
+function EssenceEventTracker:SetupEssenceDisplay()
+	self.wndEssenceDisplay = Apollo.LoadForm(self.xmlDoc, "EssenceDisplay", nil, self)
+	local arrColors = { "Red", "Blue", "Green", "Purple" }
+	for idx, strColor in ipairs(arrColors) do
+		local mon = GameLib.GetPlayerCurrency(Money.CodeEnumCurrencyType[strColor.."Essence"])
+		mon:SetAmount(0)
+		self.wndEssenceDisplay:FindChild("Currencies:"..strColor):SetAmount(mon, true)
+	end
+	self.timerEssenceDisplayTimeout = ApolloTimer.Create(5, false, "OnEssenceDisplayTimeout", self)
+	Apollo.RegisterEventHandler("WindowManagementReady", "OnWindowManagementReady", self)
+	Apollo.RegisterEventHandler("WindowManagementUpdate", "OnWindowManagementUpdate", self)
+	self:OnWindowManagementReady()
+end
+
+function EssenceEventTracker:OnWindowManagementReady()
+	Event_FireGenericEvent("WindowManagementRegister", {
+		strName = lstrWndMgmtName,
+		nSaveVersion = 1
+	})
+	Event_FireGenericEvent("WindowManagementAdd", {
+		wnd = self.wndEssenceDisplay,
+		strName = lstrWndMgmtName,
+		nSaveVersion = 1
+	})
+end
+
+function EssenceEventTracker:OnWindowManagementUpdate(tSettings)
+	if tSettings and tSettings.wnd and tSettings.wnd == self.wndEssenceDisplay then
+		local bMoveable = self.wndEssenceDisplay:IsStyleOn("Moveable")
+		local bHasMoved = tSettings.bHasMoved
+		self.wndEssenceDisplay:FindChild("Background"):Show(bMoveable)
+		self.wndEssenceDisplay:SetStyle("Sizable", bMoveable and bHasMoved)
+		self.wndEssenceDisplay:SetStyle("IgnoreMouse", not bMoveable)
+	end
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -734,6 +772,7 @@ do
 		if type == GameLib.ChannelUpdateLootType.Currency and args.monNew then
 			if validCurrencies[args.monNew:GetAccountCurrencyType()] then
 				self:GainedEssence(args.monNew)
+				self:AddToEssenceDisplay(args.monNew)
 			end
 		end
 	end
@@ -916,6 +955,33 @@ function EssenceEventTracker:MarkAsDone(rTbl, bToggle)
 
 	self:UpdateAll()
 	self:UpdateFeaturedList()
+end
+
+function EssenceEventTracker:AddToEssenceDisplay(mon)
+	self.timerEssenceDisplayTimeout:Stop()
+	local strColor = mon:GetTypeString()
+	local nNew = mon:GetAmount()
+	local arrEssences = self.wndEssenceDisplay:FindChild("Currencies"):GetChildren()
+	for idx, wndEssence in ipairs(arrEssences) do
+		local monCurrent = wndEssence:GetCurrency()
+		if strColor == monCurrent:GetTypeString() then
+			wndEssence:Show(true, true)
+			local nCurrent = monCurrent:GetAmount()
+			monCurrent:SetAmount(nCurrent + nNew)
+			wndEssence:SetAmount(monCurrent)
+		end
+	end
+	self.timerEssenceDisplayTimeout:Start()
+end
+
+function EssenceEventTracker:OnEssenceDisplayTimeout()
+	local arrEssences = self.wndEssenceDisplay:FindChild("Currencies"):GetChildren()
+	for idx, wndEssence in ipairs(arrEssences) do
+		wndEssence:Show(false)
+		local monCurrent = wndEssence:GetCurrency()
+		monCurrent:SetAmount(0)
+		wndEssence:SetAmount(monCurrent)
+	end
 end
 
 ---------------------------------------------------------------------------------------------------
