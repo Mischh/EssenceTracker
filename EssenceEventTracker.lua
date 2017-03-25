@@ -576,6 +576,7 @@ function EssenceEventTracker:UpdateFeaturedList()
 end
 
 function EssenceEventTracker:RedrawAll()
+	if not self.wndMain then return end
 	local nStartingHeight = self.wndMain:GetHeight()
 	local bStartingShown = self.wndMain:IsShown()
 
@@ -817,9 +818,24 @@ do
 	function EssenceEventTracker:OnEnteredMatchZone() --OnSubZoneChanged
 		Apollo.RemoveEventHandler("SubZoneChanged", self)
 
-		self:ClearAttendings() --this triggers the first redraw... of possibly MANY - do we want to prevent this?
 		local inst = self:GetCurrentInstance()
-
+		if not inst then
+			return self:ClearAttendings()
+		end
+		
+		local tmp = self.tEventsAttending
+		self.tEventsAttending = {}
+		if tmp and next(tmp) then
+			for cId, tEnd in pairs(tmp) do
+				for rId, tDate in pairs(tEnd) do
+					if tDate.nInstanceContentId == inst.nContentId then
+						self.tEventsAttending[cId] = self.tEventsAttending[cId] or {}
+						self.tEventsAttending[cId][rId] = tDate
+					end
+				end
+			end
+		end
+		
 		--check normal instances
 		for nRewardType, rTbl in pairs(self.tContentIds[inst.nContentId] or {}) do
 			if not self:IsDone(rTbl) and self:CheckVeteran(rTbl.src.bIsVeteran) then
@@ -839,6 +855,9 @@ do
 				self:MarkAsAttended(rTbl, inst.nContentId)
 			end
 		end
+		
+		self:UpdateAll()
+		self:UpdateFeaturedList()
 	end
 
 	function EssenceEventTracker:OnMatchFinished()
@@ -982,16 +1001,21 @@ function EssenceEventTracker:CheckRestoredAttendingEvents()
 	local inst, bFailed = self:GetCurrentInstance()
 	if bFailed then
 		self.checkRestoredAttendingEventsTimer = self.checkRestoredAttendingEventsTimer or ApolloTimer.Create(0.1, true, "CheckRestoredAttendingEvents", self)
+		return
 	else
 		self.checkRestoredAttendingEventsTimer = self.checkRestoredAttendingEventsTimer and self.checkRestoredAttendingEventsTimer:Stop() and nil
+		if not inst then
+			return self:ClearAttendings()
+		end
 	end
-
+	
 	if not self.tEventsAttending or not next(self.tEventsAttending) then return end
 	local temp,a,b = self.tEventsAttending,nil,nil --a,b just passthrough for AdjustDateTable
 	self.tEventsAttending = {}
 	for cId, tEnd in pairs(temp) do
 		for rId, tDate in pairs(tEnd) do
 			if tDate.nInstanceContentId == inst.nContentId then
+				self.tEventsAttending[cId] = self.tEventsAttending[cId] or {}
 				self.tEventsAttending[cId][rId],a,b = self:AdjustDateTable(tDate,a,b)
 				self.tEventsAttending[cId][rId].nInstanceContentId = inst.nContentId
 			end
