@@ -998,6 +998,8 @@ function EssenceEventTracker:CheckRestoredAttendingEvents()
 		end
 	end
 
+	self:UpdateAll()
+	self:UpdateFeaturedList()
 end
 
 ---------------------------------------------------------------------------------------------------
