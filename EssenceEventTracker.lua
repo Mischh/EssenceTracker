@@ -630,6 +630,8 @@ function EssenceEventTracker:RedrawAll()
 		end
 	end
 	self.wndMain:Show(self.bShow)
+	self.wndMain:FindChild("HeadlineBtn:MinimizeBtn"):SetCheck(self.tMinimized.bRoot)
+	self.wndMain:FindChild("DoneHeadline:DoneHeadlineBtn:MinimizeBtn"):SetCheck(self.tMinimized.bDoneRoot)
 
 	if nStartingHeight ~= self.wndMain:GetHeight() or self.nAvailableCounting ~= nAvailable or self.nDoneCounting ~= nDone or self.bShow ~= bStartingShown then
 		local tData =
