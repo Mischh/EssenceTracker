@@ -1,13 +1,9 @@
-<p><strong>Release v1.???:</strong></p>
+<p><strong>Release v1.2:</strong></p>
 	<p>Added:</p>
 	<ul>
-		<li>Objective Tracker: Completed Events can now be closed off.</li>
+		<li>Objective Tracker: Completed Events can now be collapsed.</li>
 		<li>Objective Tracker: Entering the respective Instance marks it as done.</li>
 		<li>Objective Tracker: Marking events Yellow, if currently inside the respective instance.</li>
-	</ul>
-	<p>Fixes:</p>
-	<ul>
-		<li></li>
 	</ul>
 <p><strong>Release v1.1:</strong></p>
 	<p>Added:</p>
