@@ -497,7 +497,7 @@ function EssenceEventTracker:SetupEssenceDisplay()
 		mon:SetAmount(0)
 		self.wndEssenceDisplay:FindChild("Currencies:"..strColor):SetAmount(mon, true)
 	end
-	self.timerEssenceDisplayTimeout = ApolloTimer.Create(5, false, "OnEssenceDisplayTimeout", self)
+	self.timerEssenceDisplayTimeout = ApolloTimer.Create(10, false, "OnEssenceDisplayTimeout", self)
 	Apollo.RegisterEventHandler("WindowManagementReady", "OnWindowManagementReady", self)
 	Apollo.RegisterEventHandler("WindowManagementUpdate", "OnWindowManagementUpdate", self)
 	self:OnWindowManagementReady()
@@ -993,34 +993,6 @@ function EssenceEventTracker:MarkAsDone(rTbl, bToggle)
 	self:UpdateFeaturedList()
 end
 
-function EssenceEventTracker:AddToEssenceDisplay(mon)
-	self.timerEssenceDisplayTimeout:Stop()
-	local strColor = mon:GetTypeString()
-	local nNew = mon:GetAmount()
-	local arrEssences = self.wndEssenceDisplay:FindChild("Currencies"):GetChildren()
-	for idx, wndEssence in ipairs(arrEssences) do
-		local monCurrent = wndEssence:GetCurrency()
-		if strColor == monCurrent:GetTypeString() then
-			wndEssence:Show(true, true)
-			local nCurrent = monCurrent:GetAmount()
-			monCurrent:SetAmount(nCurrent + nNew)
-			wndEssence:SetAmount(monCurrent)
-		end
-	end
-	self.timerEssenceDisplayTimeout:Start()
-end
-
-function EssenceEventTracker:OnEssenceDisplayTimeout()
-	local arrEssences = self.wndEssenceDisplay:FindChild("Currencies"):GetChildren()
-	for idx, wndEssence in ipairs(arrEssences) do
-		wndEssence:Show(false)
-		local monCurrent = wndEssence:GetCurrency()
-		monCurrent:SetAmount(0)
-		wndEssence:SetAmount(monCurrent)
-	end
-end
-
-
 function EssenceEventTracker:IsDone(rTbl)
 	local tRewardEnds = self.tEventsDone[rTbl.src.nContentId]
 	if not tRewardEnds then return false end
@@ -1092,6 +1064,35 @@ function EssenceEventTracker:CheckRestoredAttendingEvents()
 
 	self:UpdateAll()
 	self:UpdateFeaturedList()
+end
+
+function EssenceEventTracker:AddToEssenceDisplay(mon)
+	self.timerEssenceDisplayTimeout:Stop()
+	local strColor = mon:GetTypeString()
+	local nNew = mon:GetAmount()
+	local arrEssences = self.wndEssenceDisplay:FindChild("Currencies"):GetChildren()
+	for idx, wndEssence in ipairs(arrEssences) do
+		local monCurrent = wndEssence:GetCurrency()
+		if strColor == monCurrent:GetTypeString() then
+			wndEssence:Show(true, true)
+			wndEssence:SetAnchorOffsets(-53,0,0,0) --53 is about the length to support 4 digits + icon.
+			local nCurrent = monCurrent:GetAmount()
+			monCurrent:SetAmount(nCurrent + nNew)
+			wndEssence:SetAmount(monCurrent)
+		end
+	end
+	self.timerEssenceDisplayTimeout:Start()
+end
+
+function EssenceEventTracker:OnEssenceDisplayTimeout()
+	local arrEssences = self.wndEssenceDisplay:FindChild("Currencies"):GetChildren()
+	for idx, wndEssence in ipairs(arrEssences) do
+		wndEssence:Show(false)
+		wndEssence:SetAnchorOffsets(0,0,0,0)
+		local monCurrent = wndEssence:GetCurrency()
+		monCurrent:SetAmount(0)
+		wndEssence:SetAmount(monCurrent)
+	end
 end
 
 ---------------------------------------------------------------------------------------------------
