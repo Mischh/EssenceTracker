@@ -101,6 +101,7 @@ function EssenceEventTracker:OnLoad()
 	self.timerRealTimeUpdate = ApolloTimer.Create(1.0, true, "RedrawTimers", self)
 	self.timerRealTimeUpdate:Stop()
 	self:HookMatchMaker()
+	self:HookLootNotification()
 end
 
 function EssenceEventTracker:HookMatchMaker()
@@ -1227,6 +1228,141 @@ do
 		nTotal = nTotal + date2.nSecond - date1.nSecond
 
 		return nTotal
+	end
+end
+
+function EssenceEventTracker:BuildBaseItem()
+	local FakeItem = {}
+	
+	local nItemID = 0
+	local mon0Copper = Money.new(); mon0Copper:SetMoneyType(1); mon0Copper:SetAmount(0)
+	
+	local retFalse = {"CanAutoSalvage", "CanDelete", "CanEquip", "CanMoveToSupplySatchel", "CanSalvage", "CanTakeFromSupplySatchel", "DoesSalvageRequireKey", "GetBagSlots", "GetBankCount", 
+		"HasRestockingFee", "IsAccountTradeable", "IsAuctionable", "IsCommodity", "IsDeprecated", "IsDestroyOnLogout", "IsDestroyOnZone", "IsEquippable", "isRuneData", "IsSalvagedLootSoulbound",
+		"IsTradeableTo", "IsUnique"}
+	local retTrue = {"isData", "isInstance", "isModdableData", "IsSoulbound"}
+	local retZero = {"GetDurability", "GetEquippedCount","GetHousingDecorInfoId", "GetMaxCharges", "GetMaxDurability", "GetMaxSupplySatchelStackCount", "GetRepairCost", "GetBackpackCount"}
+	local retOne = {"GetCharges", "GetMaxStackCount", "GetRequiredLevel", "GetStackCount"}
+	local retNil = {"GetAdditiveInfo", "GetAvailableDyeChannel", "GetEquippedItemForItemType", "GetGivenQuest", "GetGlobalCatalystInfo", "GetProficiencyInfo", "GetRequiredFaction", "GetRequiredRace",
+		"GetSlot", "GetSlotName", "GetTradeskillSchematicId", "GetUnlocks", "PlayEquipSound"}
+	local ret0Gold = {"GetBuyPrice", "GetSellPrice"}
+	local retTbl = {"GetRequiredClass", "GetRuneSlots", "GetSetBonuses"}
+	local retSpecial = {
+		GetCostumeUnlockInfo = {bCanUnlock = false, bCanUseInCostume = false, bUnlocked = false, monUnlockCost = mon0Copper},
+		GetChatLinkString = "",
+		GetEffectiveLevel = 50,
+		GetInventoryId = 256, --no idea. copied.
+		GetItemFamily = Item.CodeEnumItem2Family.Item,
+		GetItemFamilyName = "Item",
+		GetItemFlavor = "",
+		GetItemPower = 250, --wtf?
+		GetItemQuality = Item.CodeEnumItemQuality.Average,
+		GetItemType = 236,
+		GetItemTypeName = "Essences",
+		GetPowerLevel = 50, --wtf?
+		GetItemId = nItemID,
+	}
+
+	local FakeItem = {}
+	function FakeItem:GetDurationRemaining() return 0,0 end
+	function FakeItem:GetDurationTotal() return 0,0 end
+	function FakeItem:GetReturnTimeRemaining() return 0,0 end
+	function FakeItem:MoveToSupplySatchel() return self end
+	function FakeItem:TakeFromSupplySatchel() return self end
+
+	local function fRetFalse() return false end
+	for _, key in ipairs(retFalse) do
+		FakeItem[key] = fRetFalse
+	end
+	
+	local function fRetTrue() return true end
+	for _, key in ipairs(retTrue) do
+		FakeItem[key] = fRetTrue
+	end
+	
+	local function fRetZero() return 0 end
+	for _, key in ipairs(retZero) do
+		FakeItem[key] = fRetZero
+	end
+	
+	local function fRetOne() return 0 end
+	for _, key in ipairs(retOne) do
+		FakeItem[key] = fRetOne
+	end
+	
+	local function fRetNil() return nil end
+	for _, key in ipairs(retNil) do
+		FakeItem[key] = fRetNil
+	end
+	
+	local function fRet0Gold() return mon0Copper end
+	for _, key in ipairs(ret0Gold) do
+		FakeItem[key] = fRet0Gold
+	end
+	
+	local function fRetTbl() return {} end
+	for _, key in ipairs(retTbl) do
+		FakeItem[key] = fRetTbl
+	end
+	
+	for key, ret in pairs(retSpecial) do
+		FakeItem[key] = function() return ret end
+	end
+	
+	return {__index = FakeItem}
+end
+
+function EssenceEventTracker:FakeEssenceItem(strName, strIcon)
+	self.baseFakeEssenceItem = self.baseFakeEssenceItem or self:BuildBaseItem()
+	local FakeItem = setmetatable({}, self.baseFakeEssenceItem)
+
+	local nItemID = 0
+	local mon0Copper = Money.new(); mon0Copper:SetMoneyType(1); mon0Copper:SetAmount(0)
+	
+	local retSpecial = {
+		GetDetailedInfo = {
+			tPrimary = {
+				bAutoSalvage = false, bCanCostumeUnlock = false, bCostumeUnlocked = false, bDestroyOnLogout = false, bDestroyOnZone = false, bGrantsGenericUnlock = false, bSalvagable = false, 
+				eCategory = Item.CodeEnumItem2Category.Junk, eFamily = Item.CodeEnumItem2Family.Item, eQuality = Item.CodeEnumItemQuality.Average, eType = 236 --[[no idea, copied]], nCraftedMultiplier = 0,
+				nEffectiveLevel = 50, nExpirationTimeSeconds = 0, nExpiresInTimeSeconds = 0, nId = nItemID, nItemLevel = 50, strName = strName, tBind = {bNoTrade = true, bSoulbound = true},
+				tCost = {arMonBuy = {mon0Copper}, arMonSell = {mon0Copper}, monRepair = mon0Copper}, tLevelRequirement = {bRequirementMet = true, nLevelRequired = 1}, tStack = {nCount = 1, nMaxCount = 1},
+			}
+		},
+		GetIcon = strIcon,
+		GetName = strName,
+	}
+
+	for key, ret in pairs(retSpecial) do
+		FakeItem[key] = function() return ret end
+	end
+	
+	return FakeItem
+end
+
+function EssenceEventTracker:HookLootNotification()
+	local Addon = Apollo.GetAddon("LootNotificationWindow")
+	if not Addon then return end
+	
+	local validCurrencies = {
+		[AccountItemLib.CodeEnumAccountCurrency.PurpleEssence] = true,
+		[AccountItemLib.CodeEnumAccountCurrency.BlueEssence] = true,
+		[AccountItemLib.CodeEnumAccountCurrency.RedEssence] = true,
+		[AccountItemLib.CodeEnumAccountCurrency.GreenEssence] = true,
+	}
+	
+	local f = Addon.OnChannelUpdate_Loot
+	Addon.OnChannelUpdate_Loot = function(this, eType, tEventArgs)
+		if eType == GameLib.ChannelUpdateLootType.Currency and tEventArgs.monNew then
+			if validCurrencies[tEventArgs.monNew:GetAccountCurrencyType()] then
+				eType = GameLib.ChannelUpdateLootType.Item
+				tEventArgs = {
+					itemNew = self:FakeEssenceItem(tEventArgs.monNew:GetMoneyString(), tEventArgs.monNew:GetDenomInfo()[1].strSprite),
+					nCount = 1,
+				}
+			end
+		end
+		
+		return f(Addon, eType, tEventArgs)
 	end
 end
 
