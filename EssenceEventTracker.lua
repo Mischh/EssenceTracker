@@ -208,11 +208,11 @@ end
 function EssenceEventTracker:GetSortedRewardList(eSort, arRewardList, funcOrig, ref, ...)
 	if self.tCustomSortFunctions[eSort] then
 		table.sort(arRewardList,
-		function (tData1, tData2)
+			function (tData1, tData2)
 				local rTbl1 = self:GetRotationForFeaturedReward(tData1)
 				local rTbl2 = self:GetRotationForFeaturedReward(tData2)
 				if not rTbl1 or not rTbl2 then
-					return self:CompareNil(rTbl1, rTbl2)
+					return self:CompareNil(rTbl1, rTbl2) > 0
 				end
 				return self.tCustomSortFunctions[eSort](self, rTbl1, rTbl2)
 			end
