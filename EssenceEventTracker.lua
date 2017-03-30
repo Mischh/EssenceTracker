@@ -430,6 +430,8 @@ function EssenceEventTracker:OnDocumentReady()
 	Apollo.RegisterEventHandler("ChannelUpdate_Loot", "OnItemGained", self)
 	Apollo.RegisterEventHandler("MatchEntered", "OnMatchEntered", self)
 	Apollo.RegisterEventHandler("MatchFinished", "OnMatchFinished", self)
+	Apollo.RegisterEventHandler("PlayerLevelChange", "OnPlayerLevelChange", self)
+	Apollo.RegisterEventHandler("CharacterCreated", "OnCharacterCreated", self)
 
 	Apollo.RegisterEventHandler("ObjectiveTrackerLoaded", "OnObjectiveTrackerLoaded", self)
 	Event_FireGenericEvent("ObjectiveTracker_RequestParent")
@@ -455,7 +457,6 @@ function EssenceEventTracker:OnObjectiveTrackerLoaded(wndForm)
 end
 
 function EssenceEventTracker:Setup()
-
 	if GameLib.GetPlayerUnit() == nil or GameLib.GetPlayerLevel(true) < 50 then
 		self.wndMain:Show(false)
 		return
@@ -485,6 +486,14 @@ function EssenceEventTracker:ToggleShowEssenceTracker()
 	self.bShow = not self.bShow
 
 	self:UpdateAll()
+end
+
+function EssenceEventTracker:OnPlayerLevelChange()
+	self:Setup()
+end
+
+function EssenceEventTracker:OnCharacterCreated()
+	self:Setup()
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -551,7 +560,7 @@ function EssenceEventTracker:UpdateAll()
 	local redo = false --do we need to :UpdateAll() again, because nSecondsLeft <= 0
 
 	local arRewardRotations = GameLib.GetRewardRotations()
-	for _, rotation in ipairs(arRewardRotations) do
+	for _, rotation in ipairs(arRewardRotations or {}) do
 		if self:IsInterestingRotation(rotation) then --filter all (only) 1x Multiplicators, aka. all thats 'default'
 			if self:BuildRotationTable(rotation) then
 				redo = true
@@ -559,7 +568,14 @@ function EssenceEventTracker:UpdateAll()
 		end
 	end
 
-	if redo or #self.tRotations == 0 then
+	local player = GameLib.GetPlayerUnit()
+	if not player or GameLib.GetPlayerLevel(true)~=50 then
+		self.bAllowShow = false
+	else
+		self.bAllowShow = true
+	end
+	
+	if redo or not player or self.bAllowShow and #self.tRotations == 0 then
 		self.updateTimer = self.updateTimer or ApolloTimer.Create(0, false, "UpdateAll", self)
 		self.updateTimer:Start()
 	else
@@ -596,7 +612,9 @@ function EssenceEventTracker:RedrawAll()
 		tDoneChildren[i]:Destroy()
 	end
 
-	if self.bShow then
+	local bShow = self.bAllowShow and self.bShow or false
+	
+	if bShow then
 		if self.tMinimized.bRoot then
 			self.wndContainerAvailable:Show(false)
 			self.wndContainerDone:Show(false)
@@ -629,21 +647,21 @@ function EssenceEventTracker:RedrawAll()
 			self.wndMain:SetAnchorOffsets(nLeft, nTop, nRight, nTop+nHeight)
 		end
 	end
-	self.wndMain:Show(self.bShow)
+	self.wndMain:Show(bShow)
 	self.wndMain:FindChild("HeadlineBtn:MinimizeBtn"):SetCheck(self.tMinimized.bRoot)
 	self.wndMain:FindChild("DoneHeadline:DoneHeadlineBtn:MinimizeBtn"):SetCheck(self.tMinimized.bDoneRoot)
 
-	if nStartingHeight ~= self.wndMain:GetHeight() or self.nAvailableCounting ~= nAvailable or self.nDoneCounting ~= nDone or self.bShow ~= bStartingShown then
+	if nStartingHeight ~= self.wndMain:GetHeight() or self.nAvailableCounting ~= nAvailable or self.nDoneCounting ~= nDone or bShow ~= bStartingShown then
 		local tData =
 		{
 			["strAddon"] = lstrAddon,
 			["strText"] = nAvailable,
-			["bChecked"] = self.bShow,
+			["bChecked"] = bShow,
 		}
 		Event_FireGenericEvent("ObjectiveTracker_UpdateAddOn", tData)
 	end
 
-	if self.bShow and not self.tMinimized.bRoot then
+	if bShow and not self.tMinimized.bRoot then
 		self.timerRealTimeUpdate:Start()
 	end
 
