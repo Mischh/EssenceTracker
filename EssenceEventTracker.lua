@@ -995,6 +995,7 @@ do --worldbosses
 	}
 
 	function EssenceEventTracker:OnPublicEventStart(tEvent)
+		if not tEvent:IsActive() then return end
 		local eId = tEvent:GetId()
 		local cId = eventIdToContentId[eId]
 		if not cId then return end
