@@ -449,6 +449,7 @@ function EssenceEventTracker:OnDocumentReady()
 	--instance tracking
 	Apollo.RegisterEventHandler("ChannelUpdate_Loot", "OnItemGained", self)
 	Apollo.RegisterEventHandler("MatchEntered", "OnMatchEntered", self)
+	Apollo.RegisterEventHandler("MatchLeft", "OnMatchLeft", self)
 	Apollo.RegisterEventHandler("MatchFinished", "OnMatchFinished", self)
 	--worldboss tracking
 	Apollo.RegisterEventHandler("PublicEventStart", "OnPublicEventStart", self)
@@ -911,6 +912,10 @@ do
 
 	function EssenceEventTracker:AfterMatchFinished()
 		self.afterMatchFinishedTimer = nil
+		self:ClearAttendings(keAttendedEvents.Instance)
+	end
+	
+	function EssenceEventTracker:OnMatchLeft()
 		self:ClearAttendings(keAttendedEvents.Instance)
 	end
 
