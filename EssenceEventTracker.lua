@@ -976,6 +976,21 @@ do
 			self:MarkAsDone(rTbl)
 		end
 	end
+	
+	function EssenceEventTracker:CheckForInstanceAttendance(rTbl)
+		local inst = self:GetCurrentInstance()
+		if not inst then return end
+		if rTbl.src.nContentId == 46 then
+		
+		elseif inst.nContentId == rTbl.src.nContentId then
+			if self:CheckVeteran(rTbl.src.bIsVeteran) then
+				if rTbl.tReward.nRewardType == keRewardTypes.Multiplier then
+					self:MarkAsDone(rTbl)
+				end
+				self:MarkAsAttended(rTbl, inst.nContentId)
+			end
+		end
+	end
 end
 
 do --worldbosses
@@ -1037,6 +1052,20 @@ do --worldbosses
 		self:UpdateFeaturedList()
 	end
 	
+	function EssenceEventTracker:CheckForWorldBossAttendance(rTbl)
+		local events = PublicEvent and PublicEvent.GetActiveEvents()
+		for i, tEvent in ipairs(events) do
+			local eId = tEvent:GetId()
+			local cId = eventIdToContentId[eId]
+			if rTbl.src.nContentId == cId then
+				if rTbl.tReward.nRewardType == keRewardTypes.Multiplier then
+					self:MarkAsDone(rTbl)
+				end
+				self:MarkAsAttended(rTbl, eId)
+				break;
+			end
+		end
+	end
 end
 
 function EssenceEventTracker:MarkAsDone(rTbl, bToggle)
@@ -1133,6 +1162,15 @@ function EssenceEventTracker:IsAttended(rTbl)
 	if not fEnd then return false end
 
 	return math.abs(fEnd - rTbl.fEndTime) < 60
+end
+
+function EssenceEventTracker:CheckForAttendance(rTbl)
+	local eType = ktContentTypeToAttendedEvent[rTbl.src.nContentType]
+	if eType == keAttendedEvents.Instance then
+		self:CheckForInstanceAttendance(rTbl)
+	elseif eType == keAttendedEvents.WorldBoss then
+		self:CheckForWorldBossAttendance(rTbl)
+	end
 end
 
 function EssenceEventTracker:CheckRestoredAttendingInstances()
@@ -1252,7 +1290,18 @@ end
 function EssenceEventTracker:OnEssenceItemClick(wndHandler, wndControl, eMouseButton, bDoubleClick)
 	if not bDoubleClick or wndHandler~=wndControl then return end
 	local rTbl = wndHandler:GetParent():GetData() --Button -> EssenceItem
-	self:MarkAsDone(rTbl, true)
+	
+	if self:IsAttended(rTbl) then --Mark as Done + Remove Attendance
+		self:MarkAsDone(rTbl)
+		self:ClearAttendings(nil, rTbl)
+	elseif self:IsDone(rTbl) then
+		-- undo + check for possible attendance
+		self:MarkAsDone(rTbl, true)
+		self:CheckForAttendance(rTbl)
+	else
+		-- mark as done.
+		self:MarkAsDone(rTbl)
+	end
 	self:UpdateAll()
 end
 
