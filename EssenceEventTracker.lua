@@ -449,6 +449,7 @@ function EssenceEventTracker:OnDocumentReady()
 	--instance tracking
 	Apollo.RegisterEventHandler("ChannelUpdate_Loot", "OnItemGained", self)
 	Apollo.RegisterEventHandler("MatchEntered", "OnMatchEntered", self)
+	Apollo.RegisterEventHandler("MatchLeft", "OnMatchLeft", self)
 	Apollo.RegisterEventHandler("MatchFinished", "OnMatchFinished", self)
 	--worldboss tracking
 	Apollo.RegisterEventHandler("PublicEventStart", "OnPublicEventStart", self)
@@ -913,6 +914,10 @@ do
 		self.afterMatchFinishedTimer = nil
 		self:ClearAttendings(keAttendedEvents.Instance)
 	end
+	
+	function EssenceEventTracker:OnMatchLeft()
+		self:ClearAttendings(keAttendedEvents.Instance)
+	end
 
 	function EssenceEventTracker:GainedEssence(tMoney)
 		if GroupLib.InInstance() then--Expedition? Dungeon? (Queued Normal Dungeon?)
@@ -1010,6 +1015,7 @@ do --worldbosses
 	}
 
 	function EssenceEventTracker:OnPublicEventStart(tEvent)
+		if not tEvent:IsActive() then return end
 		local eId = tEvent:GetId()
 		local cId = eventIdToContentId[eId]
 		if not cId then return end
