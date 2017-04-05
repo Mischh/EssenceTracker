@@ -883,10 +883,14 @@ do
 	function EssenceEventTracker:AfterMatchFinished()
 		self.afterMatchFinishedTimer = nil
 		self:ClearAttendings(keAttendedEvents.Instance)
+		-- self:UpdateAll() --included in above
+		-- self:UpdateFeaturedList()
 	end
 	
 	function EssenceEventTracker:OnMatchLeft()
 		self:ClearAttendings(keAttendedEvents.Instance)
+		-- self:UpdateAll() --included in above
+		-- self:UpdateFeaturedList()
 	end
 
 	function EssenceEventTracker:GainedEssence(tMoney)
@@ -988,12 +992,27 @@ do --worldbosses
 	end
 end
 
+function EssenceEventTracker:IsRewardEqual(tRewardA, tRewardB)
+	-- .bGranted			dont compare
+	-- .monReward			compare color & amount
+	-- .nMultiplier			
+	-- .nRewardType
+	-- .nSecondsRemaining	~60s difference
+	-- .strIcon				uninteresting
+	if math.abs(tRewardB.nSecondsRemaining-tRewardA.nSecondsRemaining) > 60 then return false end
+	if tRewardA.monReward:GetAccountCurrencyType() ~= tRewardB.monReward:GetAccountCurrencyType() then return false end
+	if tRewardA.monReward:GetAmount() ~= tRewardB.monReward:GetAmount() then return false end
+	if tRewardA.nMultiplier ~= tRewardB.nMultiplier then return false end
+	if tRewardA.nRewardType ~= tRewardB.nRewardType then return false end --is this nesseccary?
+	return true
+end
+
 function EssenceEventTracker:IsDone(rTbl)
 	local tRewards = GameLib.GetRewardRotation(rTbl.src.nContentId, rTbl.src.bIsVeteran or false)
 	if not tRewards then return false end
 	
 	for i, tReward in ipairs(tRewards) do
-		if tReward.nRewardType == rTbl.tReward.nRewardType then
+		if self:IsRewardEqual(tReward, rTbl.tReward) then
 			return tReward.bGranted
 		end
 	end
