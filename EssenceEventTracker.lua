@@ -250,8 +250,8 @@ function EssenceEventTracker:CompareNil(rTbl1, rTbl2)
 end
 
 function EssenceEventTracker:CompareCompletedStatus(rTbl1, rTbl2)
-	local bIsDone1 = self:IsDone(rTbl1) and not self:IsAttended(rTbl1)
-	local bIsDone2 = self:IsDone(rTbl2) and not self:IsAttended(rTbl2)
+	local bIsDone1 = self:IsDone(rTbl1)
+	local bIsDone2 = self:IsDone(rTbl2)
 	if bIsDone1 and not bIsDone2 then return 1 end
 	if not bIsDone1 and bIsDone2 then return -1 end
 	return 0
@@ -672,7 +672,7 @@ function EssenceEventTracker:RedrawAll()
 end
 
 function EssenceEventTracker:DrawRotation(rTbl, nAvailable, nDone)
-	local bDone = self:IsDone(rTbl) and not self:IsAttended(rTbl)
+	local bDone = self:IsDone(rTbl)
 	local wndContainer = bDone and self.wndContainerDone or self.wndContainerAvailable
 	local idx = bDone and nDone+1 or nAvailable+1
 	while not wndContainer:GetChildren()[idx] do
@@ -689,10 +689,10 @@ function EssenceEventTracker:DrawRotation(rTbl, nAvailable, nDone)
 		wndForm:FindChild("EssenceIcon"):SetTooltip("")
 	end
 	wndForm:FindChild("ControlBackerBtn:TimeText"):SetText(self:HelperTimeString(rTbl.fEndTime-GameLib.GetGameTime()))
-	if self:IsAttended(rTbl) then
-		wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorize(rTbl.strText, kstrColors.kstrYellow))
+	if bDone  then
+		wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorize(rTbl.strText, kstrColors.kstrRed))
 	else
-		wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorizeIf(rTbl.strText, kstrColors.kstrRed, bDone))
+		wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorizeIf(rTbl.strText, kstrColors.kstrYellow, self:IsAttended(rTbl)))
 	end
 	wndForm:SetData(rTbl)
 
@@ -860,14 +860,14 @@ do
 		
 		--check normal instances
 		for nRewardType, rTbl in pairs(self.tContentIds[inst.nContentId] or {}) do
-			if not self:IsDone(rTbl) and self:CheckVeteran(rTbl.src.bIsVeteran) then
+			if self:CheckVeteran(rTbl.src.bIsVeteran) then
 				self:MarkAsAttended(rTbl, inst.nContentId)
 			end
 		end
 
 		--check queues
 		for nRewardType, rTbl in pairs(self.tContentIds[46] or {}) do --46 = Random Queue - usually normal dungeon with rewardType 1 (100 purples)
-			if not self:IsDone(rTbl) and self:CheckVeteran(rTbl.src.bIsVeteran) and rTbl.src.eMatchType == inst.nContentType then
+			if self:CheckVeteran(rTbl.src.bIsVeteran) and rTbl.src.eMatchType == inst.nContentType then
 				self:MarkAsAttended(rTbl, inst.nContentId)
 			end
 		end
@@ -946,9 +946,7 @@ do --worldbosses
 		if not cId then return end
 		
 		for nRewardType, rTbl in pairs(self.tContentIds[cId] or {}) do
-			if not self:IsDone(rTbl) then
-				self:MarkAsAttended(rTbl, eId)
-			end
+			self:MarkAsAttended(rTbl, eId)
 		end
 		self:UpdateAll()
 		self:UpdateFeaturedList()
