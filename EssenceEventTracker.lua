@@ -86,7 +86,6 @@ function EssenceEventTracker:new(o)
 		bDoneRoot = false,
 		tQuests = {},
 	}
-	o.tEventsDone = {}
 	o.tInstancesAttending = {}
 	o.tWorldBossesAttending = {}
 	o.tCustomSortFunctions = {
@@ -388,7 +387,6 @@ function EssenceEventTracker:OnSave(eType)
 	elseif eType == GameLib.CodeEnumAddonSaveLevel.Realm then
 		return {
 			_version = 2,
-			tEventsDone = self.tEventsDone,
 			tInstancesAttending = self.tInstancesAttending,
 			tWorldBossesAttending = self.tWorldBossesAttending,
 		}
@@ -409,29 +407,7 @@ function EssenceEventTracker:OnRestore(eType, tSavedData)
 			self.eSort = tSavedData.eSort
 		end
 	elseif eType == GameLib.CodeEnumAddonSaveLevel.Realm then
-		if not tSavedData._version then --_version=1
-			local fNow = GameLib.GetGameTime()
-			local tNow = GameLib.GetServerTime()
-			local offset = self:CompareDateTables(tSavedData.tDate, tNow)
-
-			self.tEventsDone = {}
-			for i, tRewardEnds in pairs(tSavedData.tEventsDone or {}) do
-				self.tEventsDone[i] = {}
-				for j, v in pairs(tRewardEnds) do
-					self.tEventsDone[i][j] = self:BuildDateTable(v-offset, fNow, tNow)
-				end
-			end
-		elseif tSavedData._version == 2 then
-			local a,b --passthrough for :AdjustDateTable
-
-			self.tEventsDone = {}
-			for i, tRewardEnds in pairs(tSavedData.tEventsDone or {}) do
-				self.tEventsDone[i] = {}
-				for j, v in pairs(tRewardEnds) do
-					self.tEventsDone[i][j],a,b = self:AdjustDateTable(v, a, b)
-				end
-			end
-
+		if tSavedData._version == 2 then
 			self.tInstancesAttending = tSavedData.tInstancesAttending or tSavedData.tEventsAttending or {}
 			self.tWorldBossesAttending = tSavedData.tWorldBossesAttending or {}
 			self:CheckRestoredAttendingInstances()
@@ -885,9 +861,6 @@ do
 		--check normal instances
 		for nRewardType, rTbl in pairs(self.tContentIds[inst.nContentId] or {}) do
 			if not self:IsDone(rTbl) and self:CheckVeteran(rTbl.src.bIsVeteran) then
-				if nRewardType == keRewardTypes.Multiplier then
-					self:MarkAsDone(rTbl)
-				end
 				self:MarkAsAttended(rTbl, inst.nContentId)
 			end
 		end
@@ -895,9 +868,6 @@ do
 		--check queues
 		for nRewardType, rTbl in pairs(self.tContentIds[46] or {}) do --46 = Random Queue - usually normal dungeon with rewardType 1 (100 purples)
 			if not self:IsDone(rTbl) and self:CheckVeteran(rTbl.src.bIsVeteran) and rTbl.src.eMatchType == inst.nContentType then
-				if nRewardType == keRewardTypes.Multiplier then --include this, even if it was not yet a thing
-					self:MarkAsDone(rTbl)
-				end
 				self:MarkAsAttended(rTbl, inst.nContentId)
 			end
 		end
@@ -920,22 +890,8 @@ do
 	end
 
 	function EssenceEventTracker:GainedEssence(tMoney)
-		if GroupLib.InInstance() then--Expedition? Dungeon? (Queued Normal Dungeon?)
-			local inst = self:GetCurrentInstance()
-			if not inst then return end
-
-			--we ARE in inst! Pass to other function, because we only wanna detect in this function
-			self:EssenceInInstance(tMoney, inst.nContentId, inst.nBase)
-			self:EssenceInQueue(tMoney, inst.nContentType, inst.nBase)
-		end
-	end
-
-	local function closeEnough(approx, exact)
-		if approx*1.05 > exact and approx*0.95 < exact then
-			return true
-		else
-			return false
-		end
+		self:UpdateAll()
+		self:UpdateFeaturedList()
 	end
 
 
@@ -947,51 +903,16 @@ do
 			return tInstanceSettingsInfo.eWorldDifficulty == GroupLib.Difficulty.Normal
 		end
 	end
-
-	function EssenceEventTracker:EssenceInInstance(tMoney, nContentId, nBase)
-		local nRewardType = validCurrencies[tMoney:GetAccountCurrencyType()]
-		if nRewardType ~= keRewardTypes.Addition then return end --all the multipliers are already done on attending.
-
-		local rTbl = self.tContentIds[nContentId] and self.tContentIds[nContentId][nRewardType]
-		if not rTbl or not self:CheckVeteran(rTbl.src.bIsVeteran) or not self:IsAttended(rTbl) then return end
-
-		if tMoney:GetAccountCurrencyType() ~= rTbl.tReward.monReward:GetAccountCurrencyType() then return end
-
-		local fSignature = AccountItemLib.GetPremiumTier() > 0 and 1.5 or 1
-		local approx = rTbl.tReward.monReward:GetAmount() * fSignature
-
-		if closeEnough(approx, tMoney:GetAmount()) then
-			self:MarkAsDone(rTbl)
-		end
-	end
-
-	function EssenceEventTracker:EssenceInQueue(tMoney, nContentType, nBase)
-		local nRewardType = validCurrencies[tMoney:GetAccountCurrencyType()]
-		if nRewardType ~= keRewardTypes.Addition then return end --all the multipliers are already done on attending.
-
-		local rTbl = self.tContentIds[46] and self.tContentIds[46][nRewardType] --46 = Random Queue - usually normal dungeon with rewardType 1 (100 purples)
-		if not rTbl or rTbl.src.eMatchType ~= nContentType or not self:CheckVeteran(rTbl.src.bIsVeteran) or not self:IsAttended(rTbl) then return end
-
-		if tMoney:GetAccountCurrencyType() ~= rTbl.tReward.monReward:GetAccountCurrencyType() then return end
-
-		local fSignature = AccountItemLib.GetPremiumTier() > 0 and 1.5 or 1
-		local approx = rTbl.tReward.monReward:GetAmount() * fSignature
-
-		if closeEnough(approx, tMoney:GetAmount()) then
-			self:MarkAsDone(rTbl)
-		end
-	end
 	
 	function EssenceEventTracker:CheckForInstanceAttendance(rTbl)
 		local inst = self:GetCurrentInstance()
 		if not inst then return end
 		if rTbl.src.nContentId == 46 then
-		
+			if self:CheckVeteran(rTbl.src.bIsVeteran) and rTbl.src.eMatchType == inst.nContentType then
+				self:MarkAsAttended(rTbl, inst.nContentId)
+			end
 		elseif inst.nContentId == rTbl.src.nContentId then
 			if self:CheckVeteran(rTbl.src.bIsVeteran) then
-				if rTbl.tReward.nRewardType == keRewardTypes.Multiplier then
-					self:MarkAsDone(rTbl)
-				end
 				self:MarkAsAttended(rTbl, inst.nContentId)
 			end
 		end
@@ -1022,9 +943,6 @@ do --worldbosses
 		
 		for nRewardType, rTbl in pairs(self.tContentIds[cId] or {}) do
 			if not self:IsDone(rTbl) then
-				if nRewardType == keRewardTypes.Multiplier then
-					self:MarkAsDone(rTbl)
-				end
 				self:MarkAsAttended(rTbl, eId)
 			end
 		end
@@ -1051,7 +969,6 @@ do --worldbosses
 		if not cId then return end
 		
 		for nRewardType, rTbl in pairs(self.tContentIds[cId] or {}) do
-			self:MarkAsDone(rTbl)
 			self:ClearAttendings(nil, rTbl)
 		end
 		self:UpdateAll()
@@ -1064,9 +981,6 @@ do --worldbosses
 			local eId = tEvent:GetId()
 			local cId = eventIdToContentId[eId]
 			if rTbl.src.nContentId == cId then
-				if rTbl.tReward.nRewardType == keRewardTypes.Multiplier then
-					self:MarkAsDone(rTbl)
-				end
 				self:MarkAsAttended(rTbl, eId)
 				break;
 			end
@@ -1074,37 +988,17 @@ do --worldbosses
 	end
 end
 
-function EssenceEventTracker:MarkAsDone(rTbl, bToggle)
-	local cId, rId = rTbl.src.nContentId, rTbl.tReward.nRewardType
-
-	if bToggle and self:IsDone(rTbl) then
-		if self.tEventsDone[cId] then --should always be true, but... make sure.
-			self.tEventsDone[cId][rId] = nil
-			if not next(self.tEventsDone[cId]) then
-				self.tEventsDone[cId] = nil
-			end
-		end
-	else
-		self.tEventsDone[cId] = self.tEventsDone[cId] or {}
-		self.tEventsDone[cId][rId] = self:BuildDateTable(rTbl.fEndTime)
-	end
-
-	self:UpdateAll()
-	self:UpdateFeaturedList()
-end
-
-
 function EssenceEventTracker:IsDone(rTbl)
-	local tRewardEnds = self.tEventsDone[rTbl.src.nContentId]
-	if not tRewardEnds then return false end
-
-	local tEnd = tRewardEnds[rTbl.tReward.nRewardType]
-	if not tEnd then return false end
-
-	local fEnd = tEnd.nGameTime
-	if not fEnd then return false end
-
-	return math.abs(fEnd - rTbl.fEndTime) < 60
+	local tRewards = GameLib.GetRewardRotation(rTbl.src.nContentId, rTbl.src.bIsVeteran or false)
+	if not tRewards then return false end
+	
+	for i, tReward in ipairs(tRewards) do
+		if tReward.nRewardType == rTbl.tReward.nRewardType then
+			return tReward.bGranted
+		end
+	end
+	
+	return false
 end
 
 --rTbl only to clear a specific attending. (can leave eType out then)
@@ -1297,30 +1191,23 @@ function EssenceEventTracker:OnEssenceItemClick(wndHandler, wndControl, eMouseBu
 	if not bDoubleClick or wndHandler~=wndControl then return end
 	local rTbl = wndHandler:GetParent():GetData() --Button -> EssenceItem
 	
-	if self:IsAttended(rTbl) then --Mark as Done + Remove Attendance
-		self:MarkAsDone(rTbl)
+	if self:IsAttended(rTbl) then
 		self:ClearAttendings(nil, rTbl)
-	elseif self:IsDone(rTbl) then
-		-- undo + check for possible attendance
-		self:MarkAsDone(rTbl, true)
-		self:CheckForAttendance(rTbl)
 	else
-		-- mark as done.
-		self:MarkAsDone(rTbl)
+		self:CheckForAttendance(rTbl)
 	end
-	self:UpdateAll()
 end
 
 function EssenceEventTracker:OnRewardTabCompletedCheck(wndHandler, wndControl)
 	wndControl:GetParent():FindChild("Shader"):Show(true)
 	local rTbl = wndHandler:GetData()
-	self:MarkAsDone(rTbl, true)
+	-- self:MarkAsDone(rTbl, true) doesnt exist anymore
 end
 
 function EssenceEventTracker:OnRewardTabCompletedUncheck(wndHandler, wndControl)
 	wndControl:GetParent():FindChild("Shader"):Show(false)
 	local rTbl = wndHandler:GetData()
-	self:MarkAsDone(rTbl, true)
+	-- self:MarkAsDone(rTbl, true) doesnt exist anymore
 end
 
 ---------------------------------------------------------------------------------------------------
