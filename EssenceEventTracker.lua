@@ -254,7 +254,8 @@ end
 function EssenceEventTracker:OnLoadForm(xml, strName, wndParent, tHandler)
 	if strName == "MatchMakerForm" then
 		self.addonMatchMaker = tHandler
-		self:SilentPostHook(self.addonMatchMaker, "BuildFeaturedList", "BuildFeaturedListHook")
+		-- Disable overlays until we need them again
+		--self:SilentPostHook(self.addonMatchMaker, "BuildFeaturedList", "BuildFeaturedListHook")
 		self:SilentPostHook(self.addonMatchMaker, "BuildRewardsList", "BuildRewardsListHook")
 		self:SilentPostHook(self.addonMatchMaker, "HelperCreateFeaturedSort", "HelperCreateFeaturedSortHook")
 		self:RawHook(self.addonMatchMaker, "GetSortedRewardList", "GetSortedRewardListHook")
