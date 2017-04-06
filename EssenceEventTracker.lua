@@ -117,6 +117,131 @@ function EssenceEventTracker:OnLoad()
 	self:HookMatchMaker()
 end
 
+function EssenceEventTracker:OnSave(eType)
+	if eType == GameLib.CodeEnumAddonSaveLevel.Character then
+		return {
+			tMinimized = self.tMinimized,
+			bShow = self.bShow,
+			eSort = self.eSort,
+		}
+	elseif eType == GameLib.CodeEnumAddonSaveLevel.Realm then
+		return {
+			_version = 2,
+			tInstancesAttending = self.tInstancesAttending,
+			tWorldBossesAttending = self.tWorldBossesAttending,
+		}
+	end
+end
+
+function EssenceEventTracker:OnRestore(eType, tSavedData)
+	if eType == GameLib.CodeEnumAddonSaveLevel.Character then
+		if tSavedData.tMinimized ~= nil then
+			self.tMinimized = tSavedData.tMinimized
+		end
+
+		if tSavedData.bShow ~= nil then
+			self.bShow = tSavedData.bShow
+		end
+
+		if tSavedData.eSort ~= nil then
+			self.eSort = tSavedData.eSort
+		end
+	elseif eType == GameLib.CodeEnumAddonSaveLevel.Realm then
+		if tSavedData._version == 2 then
+			self.tInstancesAttending = tSavedData.tInstancesAttending or tSavedData.tEventsAttending or {}
+			self.tWorldBossesAttending = tSavedData.tWorldBossesAttending or {}
+			self:CheckRestoredAttendingInstances()
+			self:CheckRestoredAttendingWorldBosses()
+		end
+	end
+end
+
+function EssenceEventTracker:OnDocumentReady()
+	if self.xmlDoc == nil or not self.xmlDoc:IsLoaded() then
+		Apollo.AddAddonErrorText(self, "Could not load the main window document for some reason.")
+		return
+	end
+	
+	--instance tracking
+	Apollo.RegisterEventHandler("ChannelUpdate_Loot", "OnItemGained", self)
+	Apollo.RegisterEventHandler("MatchEntered", "OnMatchEntered", self)
+	Apollo.RegisterEventHandler("MatchLeft", "OnMatchLeft", self)
+	Apollo.RegisterEventHandler("MatchFinished", "OnMatchFinished", self)
+	--worldboss tracking
+	Apollo.RegisterEventHandler("PublicEventStart", "OnPublicEventStart", self)
+	Apollo.RegisterEventHandler("PublicEventLeave", "OnPublicEventLeave", self)
+	Apollo.RegisterEventHandler("PublicEventEnd", "OnPublicEventEnd", self)
+	--general stuff
+	Apollo.RegisterEventHandler("PlayerLevelChange", "OnPlayerLevelChange", self)
+	Apollo.RegisterEventHandler("CharacterCreated", "OnCharacterCreated", self)
+
+	Apollo.RegisterEventHandler("ObjectiveTrackerLoaded", "OnObjectiveTrackerLoaded", self)
+	Event_FireGenericEvent("ObjectiveTracker_RequestParent")
+	self.bIsLoaded = true
+end
+
+function EssenceEventTracker:OnObjectiveTrackerLoaded(wndForm)
+	if not wndForm or not wndForm:IsValid() then
+		return
+	end
+
+	Apollo.RemoveEventHandler("ObjectiveTrackerLoaded", self)
+
+	Apollo.RegisterEventHandler("QuestInit", "OnQuestInit", self)
+	Apollo.RegisterEventHandler("PlayerLevelChange", "OnPlayerLevelChange", self)
+	Apollo.RegisterEventHandler("CharacterCreated", "OnCharacterCreated", self)
+
+	self.wndMain = Apollo.LoadForm(self.xmlDoc, "ContentGroupItem", wndForm, self)
+	self.wndContainerAvailable = self.wndMain:FindChild("EventContainerAvailable")
+	self.wndContainerDone = self.wndMain:FindChild("EventContainerDone")
+
+	self:Setup()
+end
+
+function EssenceEventTracker:Setup()
+	if GameLib.GetPlayerUnit() == nil or GameLib.GetPlayerLevel(true) < 50 then
+		self.wndMain:Show(false)
+		return
+	end
+
+	if self.bSetup then
+		return
+	end
+	Apollo.RegisterEventHandler("ToggleShowEssenceTracker", "ToggleShowEssenceTracker", self)
+
+	local tContractData =
+	{
+		["strAddon"] = lstrAddon,
+		["strEventMouseLeft"] = "ToggleShowEssenceTracker",
+		["strEventMouseRight"] = "",
+		["strIcon"] = "EssenceTracker_Icon",
+		["strDefaultSort"] = kstrAddon,
+	}
+	Event_FireGenericEvent("ObjectiveTracker_NewAddOn", tContractData)
+
+	self.bSetup = true
+	
+	self:UpdateAll()
+end
+
+function EssenceEventTracker:ToggleShowEssenceTracker()
+	self.bShow = not self.bShow
+
+	self:UpdateAll()
+end
+
+function EssenceEventTracker:OnPlayerLevelChange()
+	self:Setup()
+end
+
+function EssenceEventTracker:OnCharacterCreated()
+	self:Setup()
+end
+
+---------------------------------------------------------------------------------------------------
+-- MatchMaker
+---------------------------------------------------------------------------------------------------
+
 function EssenceEventTracker:HookMatchMaker()
 	self.addonMatchMaker = Apollo.GetAddon("MatchMaker")
 	if not self.addonMatchMaker then return end
@@ -375,127 +500,6 @@ function EssenceEventTracker:BuildOverlay(wndFeaturedEntry, rTbl)
 	else
 		overlay:FindChild("Shader"):Show(false)
 	end
-end
-
-function EssenceEventTracker:OnSave(eType)
-	if eType == GameLib.CodeEnumAddonSaveLevel.Character then
-		return {
-			tMinimized = self.tMinimized,
-			bShow = self.bShow,
-			eSort = self.eSort,
-		}
-	elseif eType == GameLib.CodeEnumAddonSaveLevel.Realm then
-		return {
-			_version = 2,
-			tInstancesAttending = self.tInstancesAttending,
-			tWorldBossesAttending = self.tWorldBossesAttending,
-		}
-	end
-end
-
-function EssenceEventTracker:OnRestore(eType, tSavedData)
-	if eType == GameLib.CodeEnumAddonSaveLevel.Character then
-		if tSavedData.tMinimized ~= nil then
-			self.tMinimized = tSavedData.tMinimized
-		end
-
-		if tSavedData.bShow ~= nil then
-			self.bShow = tSavedData.bShow
-		end
-
-		if tSavedData.eSort ~= nil then
-			self.eSort = tSavedData.eSort
-		end
-	elseif eType == GameLib.CodeEnumAddonSaveLevel.Realm then
-		if tSavedData._version == 2 then
-			self.tInstancesAttending = tSavedData.tInstancesAttending or tSavedData.tEventsAttending or {}
-			self.tWorldBossesAttending = tSavedData.tWorldBossesAttending or {}
-			self:CheckRestoredAttendingInstances()
-			self:CheckRestoredAttendingWorldBosses()
-		end
-	end
-end
-
-function EssenceEventTracker:OnDocumentReady()
-	if self.xmlDoc == nil or not self.xmlDoc:IsLoaded() then
-		Apollo.AddAddonErrorText(self, "Could not load the main window document for some reason.")
-		return
-	end
-	
-	--instance tracking
-	Apollo.RegisterEventHandler("ChannelUpdate_Loot", "OnItemGained", self)
-	Apollo.RegisterEventHandler("MatchEntered", "OnMatchEntered", self)
-	Apollo.RegisterEventHandler("MatchLeft", "OnMatchLeft", self)
-	Apollo.RegisterEventHandler("MatchFinished", "OnMatchFinished", self)
-	--worldboss tracking
-	Apollo.RegisterEventHandler("PublicEventStart", "OnPublicEventStart", self)
-	Apollo.RegisterEventHandler("PublicEventLeave", "OnPublicEventLeave", self)
-	Apollo.RegisterEventHandler("PublicEventEnd", "OnPublicEventEnd", self)
-	--general stuff
-	Apollo.RegisterEventHandler("PlayerLevelChange", "OnPlayerLevelChange", self)
-	Apollo.RegisterEventHandler("CharacterCreated", "OnCharacterCreated", self)
-
-	Apollo.RegisterEventHandler("ObjectiveTrackerLoaded", "OnObjectiveTrackerLoaded", self)
-	Event_FireGenericEvent("ObjectiveTracker_RequestParent")
-	self.bIsLoaded = true
-end
-
-function EssenceEventTracker:OnObjectiveTrackerLoaded(wndForm)
-	if not wndForm or not wndForm:IsValid() then
-		return
-	end
-
-	Apollo.RemoveEventHandler("ObjectiveTrackerLoaded", self)
-
-	Apollo.RegisterEventHandler("QuestInit", "OnQuestInit", self)
-	Apollo.RegisterEventHandler("PlayerLevelChange", "OnPlayerLevelChange", self)
-	Apollo.RegisterEventHandler("CharacterCreated", "OnCharacterCreated", self)
-
-	self.wndMain = Apollo.LoadForm(self.xmlDoc, "ContentGroupItem", wndForm, self)
-	self.wndContainerAvailable = self.wndMain:FindChild("EventContainerAvailable")
-	self.wndContainerDone = self.wndMain:FindChild("EventContainerDone")
-
-	self:Setup()
-end
-
-function EssenceEventTracker:Setup()
-	if GameLib.GetPlayerUnit() == nil or GameLib.GetPlayerLevel(true) < 50 then
-		self.wndMain:Show(false)
-		return
-	end
-
-	if self.bSetup then
-		return
-	end
-	Apollo.RegisterEventHandler("ToggleShowEssenceTracker", "ToggleShowEssenceTracker", self)
-
-	local tContractData =
-	{
-		["strAddon"] = lstrAddon,
-		["strEventMouseLeft"] = "ToggleShowEssenceTracker",
-		["strEventMouseRight"] = "",
-		["strIcon"] = "EssenceTracker_Icon",
-		["strDefaultSort"] = kstrAddon,
-	}
-	Event_FireGenericEvent("ObjectiveTracker_NewAddOn", tContractData)
-
-	self.bSetup = true
-	
-	self:UpdateAll()
-end
-
-function EssenceEventTracker:ToggleShowEssenceTracker()
-	self.bShow = not self.bShow
-
-	self:UpdateAll()
-end
-
-function EssenceEventTracker:OnPlayerLevelChange()
-	self:Setup()
-end
-
-function EssenceEventTracker:OnCharacterCreated()
-	self:Setup()
 end
 
 ---------------------------------------------------------------------------------------------------
