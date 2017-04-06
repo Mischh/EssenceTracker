@@ -100,6 +100,7 @@ function EssenceEventTracker:new(o)
 end
 
 function EssenceEventTracker:Init()
+	Apollo.GetPackage("Gemini:Hook-1.0").tPackage:Embed(self)
     Apollo.RegisterAddon(self)
 end
 
@@ -246,57 +247,55 @@ function EssenceEventTracker:HookMatchMaker()
 	local matchmaker = Apollo.GetAddon("MatchMaker")
 	if not matchmaker then return end --if MatchMaker does not exist, we will never get a valid LoadForm.
 	
-	local f = Apollo.LoadForm
-	function Apollo.LoadForm(...)
-		local xml, strName, wndParent, tHandler = ...
-		if strName == "MatchMakerForm" then
-			self.addonMatchMaker = tHandler
-			self:HookBuildFeaturedList()
-			self:HookBuildRewardsList()
-			self:HookHelperCreateFeaturedSort()
-			self:HookGetSortedRewardList()
-			
-			Apollo.LoadForm = f
-		end
-		return f(...)
+	--GeminiHook
+	self:Hook(Apollo, "LoadForm", "OnLoadForm")
+end
+
+function EssenceEventTracker:OnLoadForm(xml, strName, wndParent, tHandler)
+	if strName == "MatchMakerForm" then
+		self.addonMatchMaker = tHandler
+		self:SilentPostHook(self.addonMatchMaker, "BuildFeaturedList", "BuildFeaturedListHook")
+		self:SilentPostHook(self.addonMatchMaker, "BuildRewardsList", "BuildRewardsListHook")
+		self:SilentPostHook(self.addonMatchMaker, "HelperCreateFeaturedSort", "HelperCreateFeaturedSortHook")
+		self:RawHook(self.addonMatchMaker, "GetSortedRewardList", "GetSortedRewardListHook")
+		self:Unhook(Apollo, "LoadForm")
 	end
 end
 
-function EssenceEventTracker:HookBuildFeaturedList()
-	local originalBuildFeaturedList = self.addonMatchMaker.BuildFeaturedList
-	self.addonMatchMaker.BuildFeaturedList = function(...)
-		originalBuildFeaturedList(...)
-		if self.bIsLoaded then
-			self:PlaceOverlays()
-		end
+function EssenceEventTracker:BuildFeaturedListHook(tRet, ...)
+	if self.bIsLoaded then
+		self:PlaceOverlays()
 	end
 end
 
-function EssenceEventTracker:HookBuildRewardsList()
-	local originalBuildRewardsList = self.addonMatchMaker.BuildRewardsList
-	-- Add missing nContentId to bonus tab data
-	self.addonMatchMaker.BuildRewardsList = function (ref, tRewardRotation, ...)
-		local arRewardList = originalBuildRewardsList(ref, tRewardRotation, ...)
-		for i=1, #arRewardList do
-			arRewardList[i].nContentId = tRewardRotation.nContentId
-		end
+function EssenceEventTracker:BuildRewardsListHook(tRet, ref, tRewardRotation)
+	local arRewardList = tRet[1]
+	for i=1, #arRewardList do
+		arRewardList[i].nContentId = tRewardRotation.nContentId
+	end
+end
+
+function EssenceEventTracker:HelperCreateFeaturedSortHook()
+	self:AddAdditionalSortOptions()
+end
+
+function EssenceEventTracker:GetSortedRewardListHook(ref, arRewardList, ...)
+	self:UpdateSortType(self.addonMatchMaker.tWndRefs.wndFeaturedSort:GetData())
+	if self.tCustomSortFunctions[self.eSort] then
+		table.sort(arRewardList,
+			function (tData1, tData2)
+				local rTbl1 = self:GetRotationForFeaturedReward(tData1)
+				local rTbl2 = self:GetRotationForFeaturedReward(tData2)
+				if not rTbl1 or not rTbl2 then
+					return self:CompareNil(rTbl1, rTbl2) > 0
+				end
+				return self.tCustomSortFunctions[self.eSort](self, rTbl1, rTbl2)
+			end
+		)
 		return arRewardList
-	end
-end
-
-function EssenceEventTracker:HookHelperCreateFeaturedSort()
-	local originalHelperCreateFeaturedSort = self.addonMatchMaker.HelperCreateFeaturedSort
-	self.addonMatchMaker.HelperCreateFeaturedSort = function(...)
-		originalHelperCreateFeaturedSort(...)
-		self:AddAdditionalSortOptions()
-	end
-end
-
-function EssenceEventTracker:HookGetSortedRewardList()
-	local originalGetSortedRewardList = self.addonMatchMaker.GetSortedRewardList
-	self.addonMatchMaker.GetSortedRewardList = function(ref, arRewardList, ...)
-		self:UpdateSortType(self.addonMatchMaker.tWndRefs.wndFeaturedSort:GetData())
-		return self:GetSortedRewardList(self.eSort, arRewardList, originalGetSortedRewardList, ref, ...)
+	else
+		--original function
+		return self.hooks[self.addonMatchMaker]["GetSortedRewardList"](ref, arRewardList, ...)
 	end
 end
 
@@ -353,25 +352,6 @@ function EssenceEventTracker:UpdateSortType(eSort)
 	if eSort ~= old_eSort then
 		self:UpdateAll()
 	end
-end
-
-function EssenceEventTracker:GetSortedRewardList(eSort, arRewardList, funcOrig, ref, ...)
-	if self.tCustomSortFunctions[eSort] then
-		table.sort(arRewardList,
-			function (tData1, tData2)
-				local rTbl1 = self:GetRotationForFeaturedReward(tData1)
-				local rTbl2 = self:GetRotationForFeaturedReward(tData2)
-				if not rTbl1 or not rTbl2 then
-					return self:CompareNil(rTbl1, rTbl2) > 0
-				end
-				return self.tCustomSortFunctions[eSort](self, rTbl1, rTbl2)
-			end
-		)
-	else
-		funcOrig(ref, arRewardList, ...)
-	end
-
-	return arRewardList
 end
 
 function EssenceEventTracker:CompareNil(rTbl1, rTbl2)
@@ -1245,6 +1225,29 @@ end
 ---------------------------------------------------------------------------------------------------
 -- Helpers
 ---------------------------------------------------------------------------------------------------
+do
+	local function buildRet(...)
+		return {...}, select("#", ...)
+	end
+	local function returnRet(tbl, max, idx)
+		idx = idx or 1
+		if idx > max then return end
+		return tbl[idx], returnRet(tbl, max, idx+1)
+	end
+	function EssenceEventTracker:SilentPostHook(object, method, handler)
+		if type(handler) ~= "function" and type(handler) ~= "string" then 
+			error(("Usage: SilentPostHook(object, method, handler): 'handler' - expected function or string got %s"):format(type(handler)), 2)
+		end
+		local f = (type(handler) == "function" and handler or 
+					function(...) self[handler](self,...) end)
+		self:RawHook(object, method, function(...)
+			local a,b = buildRet(self.hooks[object][method](...))
+			f(a,...)
+			return returnRet(a,b)
+		end)
+	end
+end
+
 function EssenceEventTracker:HelperTimeString(fTime, strColorOverride)
 	local fSeconds = fTime % 60
 	local fMinutes = (fTime / 60)%60
