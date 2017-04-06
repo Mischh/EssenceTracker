@@ -243,12 +243,23 @@ end
 ---------------------------------------------------------------------------------------------------
 
 function EssenceEventTracker:HookMatchMaker()
-	self.addonMatchMaker = Apollo.GetAddon("MatchMaker")
-	if not self.addonMatchMaker then return end
-	self:HookBuildFeaturedList()
-	self:HookBuildRewardsList()
-	self:HookHelperCreateFeaturedSort()
-	self:HookGetSortedRewardList()
+	local matchmaker = Apollo.GetAddon("MatchMaker")
+	if not matchmaker then return end --if MatchMaker does not exist, we will never get a valid LoadForm.
+	
+	local f = Apollo.LoadForm
+	function Apollo.LoadForm(...)
+		local xml, strName, wndParent, tHandler = ...
+		if strName == "MatchMakerForm" then
+			self.addonMatchMaker = tHandler
+			self:HookBuildFeaturedList()
+			self:HookBuildRewardsList()
+			self:HookHelperCreateFeaturedSort()
+			self:HookGetSortedRewardList()
+			
+			Apollo.LoadForm = f
+		end
+		return f(...)
+	end
 end
 
 function EssenceEventTracker:HookBuildFeaturedList()
