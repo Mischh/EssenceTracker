@@ -1168,14 +1168,6 @@ function EssenceEventTracker:OnGenerateTooltip(wndControl, wndHandler, eType, ar
 end
 
 function EssenceEventTracker:OnEssenceItemClick(wndHandler, wndControl, eMouseButton, bDoubleClick)
-	if not bDoubleClick or wndHandler~=wndControl then return end
-	local rTbl = wndHandler:GetParent():GetData() --Button -> EssenceItem
-
-	if self:IsAttended(rTbl) then
-		self:ClearAttendings(nil, rTbl)
-	else
-		self:CheckForAttendance(rTbl)
-	end
 end
 
 function EssenceEventTracker:OnRewardTabCompletedCheck(wndHandler, wndControl)
