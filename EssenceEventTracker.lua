@@ -254,18 +254,11 @@ end
 function EssenceEventTracker:OnLoadForm(xml, strName, wndParent, tHandler)
 	if strName == "MatchMakerForm" then
 		self.addonMatchMaker = tHandler
-		-- Disable overlays until we need them again
-		--self:SilentPostHook(self.addonMatchMaker, "BuildFeaturedList", "BuildFeaturedListHook")
+		
 		self:SilentPostHook(self.addonMatchMaker, "BuildRewardsList", "BuildRewardsListHook")
 		self:SilentPostHook(self.addonMatchMaker, "HelperCreateFeaturedSort", "HelperCreateFeaturedSortHook")
 		self:RawHook(self.addonMatchMaker, "GetSortedRewardList", "GetSortedRewardListHook")
 		self:Unhook(Apollo, "LoadForm")
-	end
-end
-
-function EssenceEventTracker:BuildFeaturedListHook(tRet, ...)
-	if self.bIsLoaded then
-		self:PlaceOverlays()
 	end
 end
 
@@ -451,17 +444,6 @@ function EssenceEventTracker:CompareByContentId(rTbl1, rTbl2)
 	return nB - nA
 end
 
-function EssenceEventTracker:PlaceOverlays()
-	local wndFeaturedEntries = self:GetFeaturedEntries()
-	for i = 1, #wndFeaturedEntries do
-		local wndFeaturedEntry = wndFeaturedEntries[i]
-		local rTbl = self:GetRotationForBonusRewardTabEntry(wndFeaturedEntry)
-		if rTbl then
-			self:BuildOverlay(wndFeaturedEntry, rTbl)
-		end
-	end
-end
-
 function EssenceEventTracker:GetFeaturedEntries()
 	--self.addonMatchMaker.tWndRefs.wndMain:FindChild("TabContent:RewardContent"):GetChildren()
 	local wndFeaturedEntries = self.addonMatchMaker
@@ -472,26 +454,11 @@ function EssenceEventTracker:GetFeaturedEntries()
 	return wndFeaturedEntries
 end
 
-function EssenceEventTracker:GetRotationForBonusRewardTabEntry(wndFeaturedEntry)
-	local tData = wndFeaturedEntry:FindChild("InfoButton"):GetData()
-	return self:GetRotationForFeaturedReward(tData)
-end
-
 function EssenceEventTracker:GetRotationForFeaturedReward(tData)
 	local rTbl = tData and self.tContentIds
 	rTbl = rTbl and rTbl[tData.nContentId]
 	rTbl = rTbl and rTbl[tData.tRewardInfo.nRewardType] or nil
 	return rTbl
-end
-
-function EssenceEventTracker:BuildOverlay(wndFeaturedEntry, rTbl)
-	local overlay = Apollo.LoadForm(self.xmlDoc, "Overlay", wndFeaturedEntry, self)
-	overlay:FindChild("Completed"):SetData(rTbl)
-	if self:IsDone(rTbl) then
-		overlay:FindChild("Completed"):SetCheck(true)
-	else
-		overlay:FindChild("Shader"):Show(false)
-	end
 end
 
 ---------------------------------------------------------------------------------------------------
