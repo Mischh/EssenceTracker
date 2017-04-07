@@ -86,7 +86,6 @@ function EssenceEventTracker:new(o)
 		bDoneRoot = false,
 		tQuests = {},
 	}
-	o.tEventsDone = {}
 	o.tInstancesAttending = {}
 	o.tWorldBossesAttending = {}
 	o.tCustomSortFunctions = {
@@ -101,6 +100,7 @@ function EssenceEventTracker:new(o)
 end
 
 function EssenceEventTracker:Init()
+	Apollo.GetPackage("Gemini:Hook-1.0").tPackage:Embed(self)
     Apollo.RegisterAddon(self)
 end
 
@@ -118,50 +118,178 @@ function EssenceEventTracker:OnLoad()
 	self:HookMatchMaker()
 end
 
+function EssenceEventTracker:OnSave(eType)
+	if eType == GameLib.CodeEnumAddonSaveLevel.Character then
+		return {
+			tMinimized = self.tMinimized,
+			bShow = self.bShow,
+			eSort = self.eSort,
+		}
+	elseif eType == GameLib.CodeEnumAddonSaveLevel.Realm then
+		return {
+			_version = 2,
+			tInstancesAttending = self.tInstancesAttending,
+			tWorldBossesAttending = self.tWorldBossesAttending,
+		}
+	end
+end
+
+function EssenceEventTracker:OnRestore(eType, tSavedData)
+	if eType == GameLib.CodeEnumAddonSaveLevel.Character then
+		if tSavedData.tMinimized ~= nil then
+			self.tMinimized = tSavedData.tMinimized
+		end
+
+		if tSavedData.bShow ~= nil then
+			self.bShow = tSavedData.bShow
+		end
+
+		if tSavedData.eSort ~= nil then
+			self.eSort = tSavedData.eSort
+		end
+	elseif eType == GameLib.CodeEnumAddonSaveLevel.Realm then
+		if tSavedData._version == 2 then
+			self.tInstancesAttending = tSavedData.tInstancesAttending or tSavedData.tEventsAttending or {}
+			self.tWorldBossesAttending = tSavedData.tWorldBossesAttending or {}
+			self:CheckRestoredAttendingInstances()
+			self:CheckRestoredAttendingWorldBosses()
+		end
+	end
+end
+
+function EssenceEventTracker:OnDocumentReady()
+	if self.xmlDoc == nil or not self.xmlDoc:IsLoaded() then
+		Apollo.AddAddonErrorText(self, "Could not load the main window document for some reason.")
+		return
+	end
+
+	--instance tracking
+	Apollo.RegisterEventHandler("ChannelUpdate_Loot", "OnItemGained", self)
+	Apollo.RegisterEventHandler("MatchEntered", "OnMatchEntered", self)
+	Apollo.RegisterEventHandler("MatchLeft", "OnMatchLeft", self)
+	Apollo.RegisterEventHandler("MatchFinished", "OnMatchFinished", self)
+	--worldboss tracking
+	Apollo.RegisterEventHandler("PublicEventStart", "OnPublicEventStart", self)
+	Apollo.RegisterEventHandler("PublicEventLeave", "OnPublicEventLeave", self)
+	Apollo.RegisterEventHandler("PublicEventEnd", "OnPublicEventEnd", self)
+	--general stuff
+	Apollo.RegisterEventHandler("PlayerLevelChange", "OnPlayerLevelChange", self)
+	Apollo.RegisterEventHandler("CharacterCreated", "OnCharacterCreated", self)
+
+	Apollo.RegisterEventHandler("ObjectiveTrackerLoaded", "OnObjectiveTrackerLoaded", self)
+	Event_FireGenericEvent("ObjectiveTracker_RequestParent")
+	self.bIsLoaded = true
+end
+
+function EssenceEventTracker:OnObjectiveTrackerLoaded(wndForm)
+	if not wndForm or not wndForm:IsValid() then
+		return
+	end
+
+	Apollo.RemoveEventHandler("ObjectiveTrackerLoaded", self)
+
+	Apollo.RegisterEventHandler("QuestInit", "OnQuestInit", self)
+	Apollo.RegisterEventHandler("PlayerLevelChange", "OnPlayerLevelChange", self)
+	Apollo.RegisterEventHandler("CharacterCreated", "OnCharacterCreated", self)
+
+	self.wndMain = Apollo.LoadForm(self.xmlDoc, "ContentGroupItem", wndForm, self)
+	self.wndContainerAvailable = self.wndMain:FindChild("EventContainerAvailable")
+	self.wndContainerDone = self.wndMain:FindChild("EventContainerDone")
+
+	self:Setup()
+end
+
+function EssenceEventTracker:Setup()
+	if GameLib.GetPlayerUnit() == nil or GameLib.GetPlayerLevel(true) < 50 then
+		self.wndMain:Show(false)
+		return
+	end
+
+	if self.bSetup then
+		return
+	end
+	Apollo.RegisterEventHandler("ToggleShowEssenceTracker", "ToggleShowEssenceTracker", self)
+
+	local tContractData =
+	{
+		["strAddon"] = lstrAddon,
+		["strEventMouseLeft"] = "ToggleShowEssenceTracker",
+		["strEventMouseRight"] = "",
+		["strIcon"] = "EssenceTracker_Icon",
+		["strDefaultSort"] = kstrAddon,
+	}
+	Event_FireGenericEvent("ObjectiveTracker_NewAddOn", tContractData)
+
+	self.bSetup = true
+
+	self:UpdateAll()
+end
+
+function EssenceEventTracker:ToggleShowEssenceTracker()
+	self.bShow = not self.bShow
+
+	self:UpdateAll()
+end
+
+function EssenceEventTracker:OnPlayerLevelChange()
+	self:Setup()
+end
+
+function EssenceEventTracker:OnCharacterCreated()
+	self:Setup()
+end
+
+---------------------------------------------------------------------------------------------------
+-- MatchMaker
+---------------------------------------------------------------------------------------------------
+
 function EssenceEventTracker:HookMatchMaker()
-	self.addonMatchMaker = Apollo.GetAddon("MatchMaker")
-	if not self.addonMatchMaker then return end
-	self:HookBuildFeaturedList()
-	self:HookBuildRewardsList()
-	self:HookHelperCreateFeaturedSort()
-	self:HookGetSortedRewardList()
+	local matchmaker = Apollo.GetAddon("MatchMaker")
+	if not matchmaker then return end --if MatchMaker does not exist, we will never get a valid LoadForm.
+
+	--GeminiHook
+	self:Hook(Apollo, "LoadForm", "OnLoadForm")
 end
 
-function EssenceEventTracker:HookBuildFeaturedList()
-	local originalBuildFeaturedList = self.addonMatchMaker.BuildFeaturedList
-	self.addonMatchMaker.BuildFeaturedList = function(...)
-		originalBuildFeaturedList(...)
-		if self.bIsLoaded then
-			self:PlaceOverlays()
-		end
+function EssenceEventTracker:OnLoadForm(xml, strName, wndParent, tHandler)
+	if strName == "MatchMakerForm" then
+		self.addonMatchMaker = tHandler
+		
+		self:SilentPostHook(self.addonMatchMaker, "BuildRewardsList", "BuildRewardsListHook")
+		self:SilentPostHook(self.addonMatchMaker, "HelperCreateFeaturedSort", "HelperCreateFeaturedSortHook")
+		self:RawHook(self.addonMatchMaker, "GetSortedRewardList", "GetSortedRewardListHook")
+		self:Unhook(Apollo, "LoadForm")
 	end
 end
 
-function EssenceEventTracker:HookBuildRewardsList()
-	local originalBuildRewardsList = self.addonMatchMaker.BuildRewardsList
-	-- Add missing nContentId to bonus tab data
-	self.addonMatchMaker.BuildRewardsList = function (ref, tRewardRotation, ...)
-		local arRewardList = originalBuildRewardsList(ref, tRewardRotation, ...)
-		for i=1, #arRewardList do
-			arRewardList[i].nContentId = tRewardRotation.nContentId
-		end
+function EssenceEventTracker:BuildRewardsListHook(tRet, ref, tRewardRotation)
+	local arRewardList = tRet[1]
+	for i=1, #arRewardList do
+		arRewardList[i].nContentId = tRewardRotation.nContentId
+	end
+end
+
+function EssenceEventTracker:HelperCreateFeaturedSortHook()
+	self:AddAdditionalSortOptions()
+end
+
+function EssenceEventTracker:GetSortedRewardListHook(ref, arRewardList, ...)
+	self:UpdateSortType(self.addonMatchMaker.tWndRefs.wndFeaturedSort:GetData())
+	if self.tCustomSortFunctions[self.eSort] then
+		table.sort(arRewardList,
+			function (tData1, tData2)
+				local rTbl1 = self:GetRotationForFeaturedReward(tData1)
+				local rTbl2 = self:GetRotationForFeaturedReward(tData2)
+				if not rTbl1 or not rTbl2 then
+					return self:CompareNil(rTbl1, rTbl2) > 0
+				end
+				return self.tCustomSortFunctions[self.eSort](self, rTbl1, rTbl2)
+			end
+		)
 		return arRewardList
-	end
-end
-
-function EssenceEventTracker:HookHelperCreateFeaturedSort()
-	local originalHelperCreateFeaturedSort = self.addonMatchMaker.HelperCreateFeaturedSort
-	self.addonMatchMaker.HelperCreateFeaturedSort = function(...)
-		originalHelperCreateFeaturedSort(...)
-		self:AddAdditionalSortOptions()
-	end
-end
-
-function EssenceEventTracker:HookGetSortedRewardList()
-	local originalGetSortedRewardList = self.addonMatchMaker.GetSortedRewardList
-	self.addonMatchMaker.GetSortedRewardList = function(ref, arRewardList, ...)
-		self:UpdateSortType(self.addonMatchMaker.tWndRefs.wndFeaturedSort:GetData())
-		return self:GetSortedRewardList(self.eSort, arRewardList, originalGetSortedRewardList, ref, ...)
+	else
+		--original function
+		return self.hooks[self.addonMatchMaker]["GetSortedRewardList"](ref, arRewardList, ...)
 	end
 end
 
@@ -220,25 +348,6 @@ function EssenceEventTracker:UpdateSortType(eSort)
 	end
 end
 
-function EssenceEventTracker:GetSortedRewardList(eSort, arRewardList, funcOrig, ref, ...)
-	if self.tCustomSortFunctions[eSort] then
-		table.sort(arRewardList,
-			function (tData1, tData2)
-				local rTbl1 = self:GetRotationForFeaturedReward(tData1)
-				local rTbl2 = self:GetRotationForFeaturedReward(tData2)
-				if not rTbl1 or not rTbl2 then
-					return self:CompareNil(rTbl1, rTbl2) > 0
-				end
-				return self.tCustomSortFunctions[eSort](self, rTbl1, rTbl2)
-			end
-		)
-	else
-		funcOrig(ref, arRewardList, ...)
-	end
-
-	return arRewardList
-end
-
 function EssenceEventTracker:CompareNil(rTbl1, rTbl2)
 	if not rTbl1 and not rTbl2 then
 		return 0
@@ -251,8 +360,8 @@ function EssenceEventTracker:CompareNil(rTbl1, rTbl2)
 end
 
 function EssenceEventTracker:CompareCompletedStatus(rTbl1, rTbl2)
-	local bIsDone1 = self:IsDone(rTbl1) and not self:IsAttended(rTbl1)
-	local bIsDone2 = self:IsDone(rTbl2) and not self:IsAttended(rTbl2)
+	local bIsDone1 = self:IsDone(rTbl1)
+	local bIsDone2 = self:IsDone(rTbl2)
 	if bIsDone1 and not bIsDone2 then return 1 end
 	if not bIsDone1 and bIsDone2 then return -1 end
 	return 0
@@ -335,17 +444,6 @@ function EssenceEventTracker:CompareByContentId(rTbl1, rTbl2)
 	return nB - nA
 end
 
-function EssenceEventTracker:PlaceOverlays()
-	local wndFeaturedEntries = self:GetFeaturedEntries()
-	for i = 1, #wndFeaturedEntries do
-		local wndFeaturedEntry = wndFeaturedEntries[i]
-		local rTbl = self:GetRotationForBonusRewardTabEntry(wndFeaturedEntry)
-		if rTbl then
-			self:BuildOverlay(wndFeaturedEntry, rTbl)
-		end
-	end
-end
-
 function EssenceEventTracker:GetFeaturedEntries()
 	--self.addonMatchMaker.tWndRefs.wndMain:FindChild("TabContent:RewardContent"):GetChildren()
 	local wndFeaturedEntries = self.addonMatchMaker
@@ -356,170 +454,11 @@ function EssenceEventTracker:GetFeaturedEntries()
 	return wndFeaturedEntries
 end
 
-function EssenceEventTracker:GetRotationForBonusRewardTabEntry(wndFeaturedEntry)
-	local tData = wndFeaturedEntry:FindChild("InfoButton"):GetData()
-	return self:GetRotationForFeaturedReward(tData)
-end
-
 function EssenceEventTracker:GetRotationForFeaturedReward(tData)
 	local rTbl = tData and self.tContentIds
 	rTbl = rTbl and rTbl[tData.nContentId]
 	rTbl = rTbl and rTbl[tData.tRewardInfo.nRewardType] or nil
 	return rTbl
-end
-
-function EssenceEventTracker:BuildOverlay(wndFeaturedEntry, rTbl)
-	local overlay = Apollo.LoadForm(self.xmlDoc, "Overlay", wndFeaturedEntry, self)
-	overlay:FindChild("Completed"):SetData(rTbl)
-	if self:IsDone(rTbl) then
-		overlay:FindChild("Completed"):SetCheck(true)
-	else
-		overlay:FindChild("Shader"):Show(false)
-	end
-end
-
-function EssenceEventTracker:OnSave(eType)
-	if eType == GameLib.CodeEnumAddonSaveLevel.Character then
-		return {
-			tMinimized = self.tMinimized,
-			bShow = self.bShow,
-			eSort = self.eSort,
-		}
-	elseif eType == GameLib.CodeEnumAddonSaveLevel.Realm then
-		return {
-			_version = 2,
-			tEventsDone = self.tEventsDone,
-			tInstancesAttending = self.tInstancesAttending,
-			tWorldBossesAttending = self.tWorldBossesAttending,
-		}
-	end
-end
-
-function EssenceEventTracker:OnRestore(eType, tSavedData)
-	if eType == GameLib.CodeEnumAddonSaveLevel.Character then
-		if tSavedData.tMinimized ~= nil then
-			self.tMinimized = tSavedData.tMinimized
-		end
-
-		if tSavedData.bShow ~= nil then
-			self.bShow = tSavedData.bShow
-		end
-
-		if tSavedData.eSort ~= nil then
-			self.eSort = tSavedData.eSort
-		end
-	elseif eType == GameLib.CodeEnumAddonSaveLevel.Realm then
-		if not tSavedData._version then --_version=1
-			local fNow = GameLib.GetGameTime()
-			local tNow = GameLib.GetServerTime()
-			local offset = self:CompareDateTables(tSavedData.tDate, tNow)
-
-			self.tEventsDone = {}
-			for i, tRewardEnds in pairs(tSavedData.tEventsDone or {}) do
-				self.tEventsDone[i] = {}
-				for j, v in pairs(tRewardEnds) do
-					self.tEventsDone[i][j] = self:BuildDateTable(v-offset, fNow, tNow)
-				end
-			end
-		elseif tSavedData._version == 2 then
-			local a,b --passthrough for :AdjustDateTable
-
-			self.tEventsDone = {}
-			for i, tRewardEnds in pairs(tSavedData.tEventsDone or {}) do
-				self.tEventsDone[i] = {}
-				for j, v in pairs(tRewardEnds) do
-					self.tEventsDone[i][j],a,b = self:AdjustDateTable(v, a, b)
-				end
-			end
-
-			self.tInstancesAttending = tSavedData.tInstancesAttending or tSavedData.tEventsAttending or {}
-			self.tWorldBossesAttending = tSavedData.tWorldBossesAttending or {}
-			self:CheckRestoredAttendingInstances()
-			self:CheckRestoredAttendingWorldBosses()
-		end
-	end
-end
-
-function EssenceEventTracker:OnDocumentReady()
-	if self.xmlDoc == nil or not self.xmlDoc:IsLoaded() then
-		Apollo.AddAddonErrorText(self, "Could not load the main window document for some reason.")
-		return
-	end
-	
-	--instance tracking
-	Apollo.RegisterEventHandler("ChannelUpdate_Loot", "OnItemGained", self)
-	Apollo.RegisterEventHandler("MatchEntered", "OnMatchEntered", self)
-	Apollo.RegisterEventHandler("MatchLeft", "OnMatchLeft", self)
-	Apollo.RegisterEventHandler("MatchFinished", "OnMatchFinished", self)
-	--worldboss tracking
-	Apollo.RegisterEventHandler("PublicEventStart", "OnPublicEventStart", self)
-	Apollo.RegisterEventHandler("PublicEventLeave", "OnPublicEventLeave", self)
-	Apollo.RegisterEventHandler("PublicEventEnd", "OnPublicEventEnd", self)
-	--general stuff
-	Apollo.RegisterEventHandler("PlayerLevelChange", "OnPlayerLevelChange", self)
-	Apollo.RegisterEventHandler("CharacterCreated", "OnCharacterCreated", self)
-
-	Apollo.RegisterEventHandler("ObjectiveTrackerLoaded", "OnObjectiveTrackerLoaded", self)
-	Event_FireGenericEvent("ObjectiveTracker_RequestParent")
-	self.bIsLoaded = true
-end
-
-function EssenceEventTracker:OnObjectiveTrackerLoaded(wndForm)
-	if not wndForm or not wndForm:IsValid() then
-		return
-	end
-
-	Apollo.RemoveEventHandler("ObjectiveTrackerLoaded", self)
-
-	Apollo.RegisterEventHandler("QuestInit", "OnQuestInit", self)
-	Apollo.RegisterEventHandler("PlayerLevelChange", "OnPlayerLevelChange", self)
-	Apollo.RegisterEventHandler("CharacterCreated", "OnCharacterCreated", self)
-
-	self.wndMain = Apollo.LoadForm(self.xmlDoc, "ContentGroupItem", wndForm, self)
-	self.wndContainerAvailable = self.wndMain:FindChild("EventContainerAvailable")
-	self.wndContainerDone = self.wndMain:FindChild("EventContainerDone")
-
-	self:Setup()
-end
-
-function EssenceEventTracker:Setup()
-	if GameLib.GetPlayerUnit() == nil or GameLib.GetPlayerLevel(true) < 50 then
-		self.wndMain:Show(false)
-		return
-	end
-
-	if self.bSetup then
-		return
-	end
-	Apollo.RegisterEventHandler("ToggleShowEssenceTracker", "ToggleShowEssenceTracker", self)
-
-	local tContractData =
-	{
-		["strAddon"] = lstrAddon,
-		["strEventMouseLeft"] = "ToggleShowEssenceTracker",
-		["strEventMouseRight"] = "",
-		["strIcon"] = "EssenceTracker_Icon",
-		["strDefaultSort"] = kstrAddon,
-	}
-	Event_FireGenericEvent("ObjectiveTracker_NewAddOn", tContractData)
-
-	self.bSetup = true
-	
-	self:UpdateAll()
-end
-
-function EssenceEventTracker:ToggleShowEssenceTracker()
-	self.bShow = not self.bShow
-
-	self:UpdateAll()
-end
-
-function EssenceEventTracker:OnPlayerLevelChange()
-	self:Setup()
-end
-
-function EssenceEventTracker:OnCharacterCreated()
-	self:Setup()
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -600,7 +539,7 @@ function EssenceEventTracker:UpdateAll()
 	else
 		self.bAllowShow = true
 	end
-	
+
 	if redo or not player or self.bAllowShow and #self.tRotations == 0 then
 		self.updateTimer = self.updateTimer or ApolloTimer.Create(0, false, "UpdateAll", self)
 		self.updateTimer:Start()
@@ -639,7 +578,7 @@ function EssenceEventTracker:RedrawAll()
 	end
 
 	local bShow = self.bAllowShow and self.bShow or false
-	
+
 	if bShow then
 		if self.tMinimized.bRoot then
 			self.wndContainerAvailable:Show(false)
@@ -696,7 +635,7 @@ function EssenceEventTracker:RedrawAll()
 end
 
 function EssenceEventTracker:DrawRotation(rTbl, nAvailable, nDone)
-	local bDone = self:IsDone(rTbl) and not self:IsAttended(rTbl)
+	local bDone = self:IsDone(rTbl)
 	local wndContainer = bDone and self.wndContainerDone or self.wndContainerAvailable
 	local idx = bDone and nDone+1 or nAvailable+1
 	while not wndContainer:GetChildren()[idx] do
@@ -713,10 +652,10 @@ function EssenceEventTracker:DrawRotation(rTbl, nAvailable, nDone)
 		wndForm:FindChild("EssenceIcon"):SetTooltip("")
 	end
 	wndForm:FindChild("ControlBackerBtn:TimeText"):SetText(self:HelperTimeString(rTbl.fEndTime-GameLib.GetGameTime()))
-	if self:IsAttended(rTbl) then
-		wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorize(rTbl.strText, kstrColors.kstrYellow))
+	if bDone  then
+		wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorize(rTbl.strText, kstrColors.kstrRed))
 	else
-		wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorizeIf(rTbl.strText, kstrColors.kstrRed, bDone))
+		wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorizeIf(rTbl.strText, kstrColors.kstrYellow, self:IsAttended(rTbl)))
 	end
 	wndForm:SetData(rTbl)
 
@@ -868,7 +807,7 @@ do
 		if not inst then
 			return self:ClearAttendings(keAttendedEvents.Instance)
 		end
-		
+
 		local tmp = self.tInstancesAttending
 		self.tInstancesAttending = {}
 		if tmp and next(tmp) then
@@ -881,27 +820,21 @@ do
 				end
 			end
 		end
-		
+
 		--check normal instances
 		for nRewardType, rTbl in pairs(self.tContentIds[inst.nContentId] or {}) do
-			if not self:IsDone(rTbl) and self:CheckVeteran(rTbl.src.bIsVeteran) then
-				if nRewardType == keRewardTypes.Multiplier then
-					self:MarkAsDone(rTbl)
-				end
+			if self:CheckVeteran(rTbl.src.bIsVeteran) then
 				self:MarkAsAttended(rTbl, inst.nContentId)
 			end
 		end
 
 		--check queues
 		for nRewardType, rTbl in pairs(self.tContentIds[46] or {}) do --46 = Random Queue - usually normal dungeon with rewardType 1 (100 purples)
-			if not self:IsDone(rTbl) and self:CheckVeteran(rTbl.src.bIsVeteran) and rTbl.src.eMatchType == inst.nContentType then
-				if nRewardType == keRewardTypes.Multiplier then --include this, even if it was not yet a thing
-					self:MarkAsDone(rTbl)
-				end
+			if self:CheckVeteran(rTbl.src.bIsVeteran) and rTbl.src.eMatchType == inst.nContentType then
 				self:MarkAsAttended(rTbl, inst.nContentId)
 			end
 		end
-		
+
 		self:UpdateAll()
 		self:UpdateFeaturedList()
 	end
@@ -913,29 +846,19 @@ do
 	function EssenceEventTracker:AfterMatchFinished()
 		self.afterMatchFinishedTimer = nil
 		self:ClearAttendings(keAttendedEvents.Instance)
+		-- self:UpdateAll() --included in above
+		-- self:UpdateFeaturedList()
 	end
-	
+
 	function EssenceEventTracker:OnMatchLeft()
 		self:ClearAttendings(keAttendedEvents.Instance)
+		-- self:UpdateAll() --included in above
+		-- self:UpdateFeaturedList()
 	end
 
 	function EssenceEventTracker:GainedEssence(tMoney)
-		if GroupLib.InInstance() then--Expedition? Dungeon? (Queued Normal Dungeon?)
-			local inst = self:GetCurrentInstance()
-			if not inst then return end
-
-			--we ARE in inst! Pass to other function, because we only wanna detect in this function
-			self:EssenceInInstance(tMoney, inst.nContentId, inst.nBase)
-			self:EssenceInQueue(tMoney, inst.nContentType, inst.nBase)
-		end
-	end
-
-	local function closeEnough(approx, exact)
-		if approx*1.05 > exact and approx*0.95 < exact then
-			return true
-		else
-			return false
-		end
+		self:UpdateAll()
+		self:UpdateFeaturedList()
 	end
 
 
@@ -948,50 +871,15 @@ do
 		end
 	end
 
-	function EssenceEventTracker:EssenceInInstance(tMoney, nContentId, nBase)
-		local nRewardType = validCurrencies[tMoney:GetAccountCurrencyType()]
-		if nRewardType ~= keRewardTypes.Addition then return end --all the multipliers are already done on attending.
-
-		local rTbl = self.tContentIds[nContentId] and self.tContentIds[nContentId][nRewardType]
-		if not rTbl or not self:CheckVeteran(rTbl.src.bIsVeteran) or not self:IsAttended(rTbl) then return end
-
-		if tMoney:GetAccountCurrencyType() ~= rTbl.tReward.monReward:GetAccountCurrencyType() then return end
-
-		local fSignature = AccountItemLib.GetPremiumTier() > 0 and 1.5 or 1
-		local approx = rTbl.tReward.monReward:GetAmount() * fSignature
-
-		if closeEnough(approx, tMoney:GetAmount()) then
-			self:MarkAsDone(rTbl)
-		end
-	end
-
-	function EssenceEventTracker:EssenceInQueue(tMoney, nContentType, nBase)
-		local nRewardType = validCurrencies[tMoney:GetAccountCurrencyType()]
-		if nRewardType ~= keRewardTypes.Addition then return end --all the multipliers are already done on attending.
-
-		local rTbl = self.tContentIds[46] and self.tContentIds[46][nRewardType] --46 = Random Queue - usually normal dungeon with rewardType 1 (100 purples)
-		if not rTbl or rTbl.src.eMatchType ~= nContentType or not self:CheckVeteran(rTbl.src.bIsVeteran) or not self:IsAttended(rTbl) then return end
-
-		if tMoney:GetAccountCurrencyType() ~= rTbl.tReward.monReward:GetAccountCurrencyType() then return end
-
-		local fSignature = AccountItemLib.GetPremiumTier() > 0 and 1.5 or 1
-		local approx = rTbl.tReward.monReward:GetAmount() * fSignature
-
-		if closeEnough(approx, tMoney:GetAmount()) then
-			self:MarkAsDone(rTbl)
-		end
-	end
-	
 	function EssenceEventTracker:CheckForInstanceAttendance(rTbl)
 		local inst = self:GetCurrentInstance()
 		if not inst then return end
 		if rTbl.src.nContentId == 46 then
-		
+			if self:CheckVeteran(rTbl.src.bIsVeteran) and rTbl.src.eMatchType == inst.nContentType then
+				self:MarkAsAttended(rTbl, inst.nContentId)
+			end
 		elseif inst.nContentId == rTbl.src.nContentId then
 			if self:CheckVeteran(rTbl.src.bIsVeteran) then
-				if rTbl.tReward.nRewardType == keRewardTypes.Multiplier then
-					self:MarkAsDone(rTbl)
-				end
 				self:MarkAsAttended(rTbl, inst.nContentId)
 			end
 		end
@@ -1019,54 +907,45 @@ do --worldbosses
 		local eId = tEvent:GetId()
 		local cId = eventIdToContentId[eId]
 		if not cId then return end
-		
+
 		for nRewardType, rTbl in pairs(self.tContentIds[cId] or {}) do
-			if not self:IsDone(rTbl) then
-				if nRewardType == keRewardTypes.Multiplier then
-					self:MarkAsDone(rTbl)
-				end
-				self:MarkAsAttended(rTbl, eId)
-			end
+			self:MarkAsAttended(rTbl, eId)
 		end
 		self:UpdateAll()
 		self:UpdateFeaturedList()
 	end
-	
+
 	function EssenceEventTracker:OnPublicEventLeave(tEvent)
 		local eId = tEvent:GetId()
 		local cId = eventIdToContentId[eId]
 		if not cId then return end
-		
+
 		for nRewardType, rTbl in pairs(self.tContentIds[cId] or {}) do
 			self:ClearAttendings(nil, rTbl)
 		end
 		self:UpdateAll()
 		self:UpdateFeaturedList()
 	end
-	
+
 	--tEvent, 1, {arObjectives, arParticipantStats, arPersonalStats, arRewardThresholds, arTeamStats, eRewardTier, eRewardType, nElapsedTime}
 	function EssenceEventTracker:OnPublicEventEnd(tEvent, arg2, arg3)
-		local eId = tEvent:GetId() 
+		local eId = tEvent:GetId()
 		local cId = eventIdToContentId[eId]
 		if not cId then return end
-		
+
 		for nRewardType, rTbl in pairs(self.tContentIds[cId] or {}) do
-			self:MarkAsDone(rTbl)
 			self:ClearAttendings(nil, rTbl)
 		end
 		self:UpdateAll()
 		self:UpdateFeaturedList()
 	end
-	
+
 	function EssenceEventTracker:CheckForWorldBossAttendance(rTbl)
 		local events = PublicEvent and PublicEvent.GetActiveEvents()
 		for i, tEvent in ipairs(events) do
 			local eId = tEvent:GetId()
 			local cId = eventIdToContentId[eId]
 			if rTbl.src.nContentId == cId then
-				if rTbl.tReward.nRewardType == keRewardTypes.Multiplier then
-					self:MarkAsDone(rTbl)
-				end
 				self:MarkAsAttended(rTbl, eId)
 				break;
 			end
@@ -1074,37 +953,32 @@ do --worldbosses
 	end
 end
 
-function EssenceEventTracker:MarkAsDone(rTbl, bToggle)
-	local cId, rId = rTbl.src.nContentId, rTbl.tReward.nRewardType
-
-	if bToggle and self:IsDone(rTbl) then
-		if self.tEventsDone[cId] then --should always be true, but... make sure.
-			self.tEventsDone[cId][rId] = nil
-			if not next(self.tEventsDone[cId]) then
-				self.tEventsDone[cId] = nil
-			end
-		end
-	else
-		self.tEventsDone[cId] = self.tEventsDone[cId] or {}
-		self.tEventsDone[cId][rId] = self:BuildDateTable(rTbl.fEndTime)
-	end
-
-	self:UpdateAll()
-	self:UpdateFeaturedList()
+function EssenceEventTracker:IsRewardEqual(tRewardA, tRewardB)
+	-- .bGranted			dont compare
+	-- .monReward			compare color & amount
+	-- .nMultiplier
+	-- .nRewardType
+	-- .nSecondsRemaining	~60s difference
+	-- .strIcon				uninteresting
+	if math.abs(tRewardB.nSecondsRemaining-tRewardA.nSecondsRemaining) > 60 then return false end
+	if tRewardA.monReward:GetAccountCurrencyType() ~= tRewardB.monReward:GetAccountCurrencyType() then return false end
+	if tRewardA.monReward:GetAmount() ~= tRewardB.monReward:GetAmount() then return false end
+	if tRewardA.nMultiplier ~= tRewardB.nMultiplier then return false end
+	if tRewardA.nRewardType ~= tRewardB.nRewardType then return false end --is this nesseccary?
+	return true
 end
 
-
 function EssenceEventTracker:IsDone(rTbl)
-	local tRewardEnds = self.tEventsDone[rTbl.src.nContentId]
-	if not tRewardEnds then return false end
+	local tRewards = GameLib.GetRewardRotation(rTbl.src.nContentId, rTbl.src.bIsVeteran or false)
+	if not tRewards then return false end
 
-	local tEnd = tRewardEnds[rTbl.tReward.nRewardType]
-	if not tEnd then return false end
+	for i, tReward in ipairs(tRewards) do
+		if self:IsRewardEqual(tReward, rTbl.tReward) then
+			return tReward.bGranted
+		end
+	end
 
-	local fEnd = tEnd.nGameTime
-	if not fEnd then return false end
-
-	return math.abs(fEnd - rTbl.fEndTime) < 60
+	return false
 end
 
 --rTbl only to clear a specific attending. (can leave eType out then)
@@ -1116,8 +990,8 @@ function EssenceEventTracker:ClearAttendings(eType, rTbl) --eType from keAttende
 			or nil)
 		if not tAttendingEvents or not tAttendingEvents[rTbl.src.nContentId] then return end
 		tAttendingEvents[rTbl.src.nContentId][rTbl.tReward.nRewardType] = nil
-		if not next(tAttendingEvents[rTbl.src.nContentId]) then 
-			tAttendingEvents[rTbl.src.nContentId] = nil 
+		if not next(tAttendingEvents[rTbl.src.nContentId]) then
+			tAttendingEvents[rTbl.src.nContentId] = nil
 		end
 	elseif eType == keAttendedEvents.Instance then
 		self.tInstancesAttending = {}
@@ -1140,12 +1014,12 @@ function EssenceEventTracker:MarkAsAttended(rTbl, ...)
 	elseif eType == keAttendedEvents.WorldBoss then
 		self.tWorldBossesAttending[cId] = self.tWorldBossesAttending[cId] or {}
 		self.tWorldBossesAttending[cId][rId] = self:BuildDateTable(rTbl.fEndTime)
-		
+
 		self.tWorldBossesAttending[cId][rId].nEventId = ...
 	else --keAttendedEvents.Daily
 		return
 	end
-	
+
 	self:UpdateAll()
 	self:UpdateFeaturedList()
 end
@@ -1155,9 +1029,9 @@ function EssenceEventTracker:IsAttended(rTbl)
 	local tAttendingEvents = (eType == keAttendedEvents.Instance and self.tInstancesAttending
 		or eType == keAttendedEvents.WorldBoss and self.tWorldBossesAttending
 		or nil)
-	
+
 	if not tAttendingEvents then return false end
-	
+
 	local tAttendEndings = tAttendingEvents[rTbl.src.nContentId]
 	if not tAttendEndings then return false end
 
@@ -1190,7 +1064,7 @@ function EssenceEventTracker:CheckRestoredAttendingInstances()
 			return self:ClearAttendings(keAttendedEvents.Instance)
 		end
 	end
-	
+
 	if not self.tInstancesAttending or not next(self.tInstancesAttending) then return end
 	local temp,a,b = self.tInstancesAttending,nil,nil --a,b just passthrough for AdjustDateTable
 	self.tInstancesAttending = {}
@@ -1210,19 +1084,19 @@ end
 
 function EssenceEventTracker:CheckRestoredAttendingWorldBosses()
 	local events = PublicEvent and PublicEvent.GetActiveEvents()
-	
+
 	if not events then
 		self.CheckRestoredAttendingWorldBossesTimer = self.CheckRestoredAttendingWorldBossesTimer or ApolloTimer.Create(0.1, true, "CheckRestoredAttendingWorldBosses", self)
 		return
 	else
 		self.CheckRestoredAttendingWorldBossesTimer = self.CheckRestoredAttendingWorldBossesTimer and self.CheckRestoredAttendingInstancesTimer:Stop() or nil
 	end
-	
+
 	local idTbl = {}
 	for i, tEvent in ipairs(events) do
 		idTbl[tEvent:GetId()] = true
 	end
-	
+
 	if not self.tWorldBossesAttending or not next(self.tWorldBossesAttending) then return end
 	local temp,a,b = self.tWorldBossesAttending,nil,nil --a,b just passthrough for AdjustDateTable
 	self.tWorldBossesAttending = {}
@@ -1294,38 +1168,46 @@ function EssenceEventTracker:OnGenerateTooltip(wndControl, wndHandler, eType, ar
 end
 
 function EssenceEventTracker:OnEssenceItemClick(wndHandler, wndControl, eMouseButton, bDoubleClick)
-	if not bDoubleClick or wndHandler~=wndControl then return end
-	local rTbl = wndHandler:GetParent():GetData() --Button -> EssenceItem
-	
-	if self:IsAttended(rTbl) then --Mark as Done + Remove Attendance
-		self:MarkAsDone(rTbl)
-		self:ClearAttendings(nil, rTbl)
-	elseif self:IsDone(rTbl) then
-		-- undo + check for possible attendance
-		self:MarkAsDone(rTbl, true)
-		self:CheckForAttendance(rTbl)
-	else
-		-- mark as done.
-		self:MarkAsDone(rTbl)
-	end
-	self:UpdateAll()
 end
 
 function EssenceEventTracker:OnRewardTabCompletedCheck(wndHandler, wndControl)
 	wndControl:GetParent():FindChild("Shader"):Show(true)
 	local rTbl = wndHandler:GetData()
-	self:MarkAsDone(rTbl, true)
+	-- self:MarkAsDone(rTbl, true) doesnt exist anymore
 end
 
 function EssenceEventTracker:OnRewardTabCompletedUncheck(wndHandler, wndControl)
 	wndControl:GetParent():FindChild("Shader"):Show(false)
 	local rTbl = wndHandler:GetData()
-	self:MarkAsDone(rTbl, true)
+	-- self:MarkAsDone(rTbl, true) doesnt exist anymore
 end
 
 ---------------------------------------------------------------------------------------------------
 -- Helpers
 ---------------------------------------------------------------------------------------------------
+do
+	local function buildRet(...)
+		return {...}, select("#", ...)
+	end
+	local function returnRet(tbl, max, idx)
+		idx = idx or 1
+		if idx > max then return end
+		return tbl[idx], returnRet(tbl, max, idx+1)
+	end
+	function EssenceEventTracker:SilentPostHook(object, method, handler)
+		if type(handler) ~= "function" and type(handler) ~= "string" then
+			error(("Usage: SilentPostHook(object, method, handler): 'handler' - expected function or string got %s"):format(type(handler)), 2)
+		end
+		local f = (type(handler) == "function" and handler or
+					function(...) self[handler](self,...) end)
+		self:RawHook(object, method, function(...)
+			local a,b = buildRet(self.hooks[object][method](...))
+			f(a,...)
+			return returnRet(a,b)
+		end)
+	end
+end
+
 function EssenceEventTracker:HelperTimeString(fTime, strColorOverride)
 	local fSeconds = fTime % 60
 	local fMinutes = (fTime / 60)%60
