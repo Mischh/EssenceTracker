@@ -1168,6 +1168,10 @@ function EssenceEventTracker:OnGenerateTooltip(wndControl, wndHandler, eType, ar
 end
 
 function EssenceEventTracker:OnEssenceItemClick(wndHandler, wndControl, eMouseButton, bDoubleClick)
+	if not bDoubleClick then return end
+	local rTbl = wndHandler:GetParent():GetData()
+	
+	Event_FireGenericEvent("ContentQueueStart", rTbl.src.nContentId, self:GetTitle(rTbl.src))
 end
 
 function EssenceEventTracker:OnRewardTabCompletedCheck(wndHandler, wndControl)
