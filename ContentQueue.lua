@@ -463,14 +463,5 @@ function ContentQueue:HelperFindMatch(nContentId)
 	return nil
 end
 
-
 local ContentQueueInst = ContentQueue:new()
 ContentQueueInst:Init()
-
-_test = function()
-	local tMatch = MatchMakingLib.GetMatchMakingEntries(MatchMakingLib.MatchType.PrimeLevelExpedition, true, true)[1]
-	local nPrime = 5
-	local tRoles = {[0]=true,[1]=true,[2]=true}
-	local strTitle = "asdf"
-	ContentQueueInst:CreateNew(tMatch, tRoles, nPrime, strTitle)
-end
