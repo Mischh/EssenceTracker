@@ -1028,7 +1028,14 @@ end
 
 function EssenceEventTracker:IsDone(rTbl)
 	local bDone = self:IsDone_Saves(rTbl)
-	if bDone ~= nil then return bDone end
+	if bDone then
+		return true
+	elseif bDone == false then
+		if not self:IsDone_Rotation(rTbl) then
+			self:RemoveDoneMark(rTbl) -- the game agrees in the Event not being done -> remove the mark.
+		end
+		return false
+	end
 	
 	local bDone = self:IsDone_Rotation(rTbl)
 	if bDone ~= true then return false end
@@ -1051,6 +1058,16 @@ function EssenceEventTracker:MarkAsDone(rTbl, bToggle)
 
 	self:UpdateAll()
 	self:UpdateFeaturedList()
+end
+
+function EssenceEventTracker:RemoveDoneMark(rTbl)
+	local cId, rId = rTbl.src.nContentId, rTbl.tReward.nRewardType
+	
+	if not self.tEventsDone[cId] then return end
+	self.tEventsDone[cId][rId] = nil
+	if not next(self.tEventsDone[cId]) then
+		self.tEventsDone[cId] = nil
+	end
 end
 
 --rTbl only to clear a specific attending. (can leave eType out then)
