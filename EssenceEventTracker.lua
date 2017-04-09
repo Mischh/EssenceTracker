@@ -1168,10 +1168,6 @@ function EssenceEventTracker:OnGenerateTooltip(wndControl, wndHandler, eType, ar
 end
 
 function EssenceEventTracker:OnEssenceItemClick(wndHandler, wndControl, eMouseButton, bDoubleClick)
-	if not bDoubleClick then return end
-	local rTbl = wndHandler:GetParent():GetData()
-	
-	Event_FireGenericEvent("ContentQueueStart", rTbl.src.nContentId, self:GetTitle(rTbl.src))
 end
 
 function EssenceEventTracker:OnRewardTabCompletedCheck(wndHandler, wndControl)
@@ -1184,6 +1180,24 @@ function EssenceEventTracker:OnRewardTabCompletedUncheck(wndHandler, wndControl)
 	wndControl:GetParent():FindChild("Shader"):Show(false)
 	local rTbl = wndHandler:GetData()
 	-- self:MarkAsDone(rTbl, true) doesnt exist anymore
+end
+
+function EssenceEventTracker:EssenceItemMouseExit(wndHandler, wndControl)
+	if wndHandler == wndControl then
+		wndHandler:FindChild("QueueButton"):Show(false)
+	end
+end
+
+function EssenceEventTracker:EssenceItemMouseEnter(wndHandler, wndControl)
+	if wndHandler == wndControl then
+		wndHandler:FindChild("QueueButton"):Show(true)
+	end
+end
+
+function EssenceEventTracker:OnQueueButtonClick(wndHandler, wndControl, eMouseButton, bDoubleClick)
+	local rTbl = wndHandler:GetParent():GetParent():GetData()
+	
+	Event_FireGenericEvent("ContentQueueStart", rTbl.src.nContentId, self:GetTitle(rTbl.src))
 end
 
 ---------------------------------------------------------------------------------------------------
