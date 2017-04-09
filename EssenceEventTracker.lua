@@ -86,6 +86,7 @@ function EssenceEventTracker:new(o)
 		bDoneRoot = false,
 		tQuests = {},
 	}
+	o.tEventsDone = {}
 	o.tInstancesAttending = {}
 	o.tWorldBossesAttending = {}
 	o.tCustomSortFunctions = {
@@ -128,6 +129,7 @@ function EssenceEventTracker:OnSave(eType)
 	elseif eType == GameLib.CodeEnumAddonSaveLevel.Realm then
 		return {
 			_version = 2,
+			tEventsDone = self.tEventsDone,
 			tInstancesAttending = self.tInstancesAttending,
 			tWorldBossesAttending = self.tWorldBossesAttending,
 		}
@@ -148,7 +150,32 @@ function EssenceEventTracker:OnRestore(eType, tSavedData)
 			self.eSort = tSavedData.eSort
 		end
 	elseif eType == GameLib.CodeEnumAddonSaveLevel.Realm then
-		if tSavedData._version == 2 then
+		if not tSavedData._version then --_version=1
+			local fNow = GameLib.GetGameTime()
+			local tNow = GameLib.GetServerTime()
+			local offset = self:CompareDateTables(tSavedData.tDate, tNow)
+
+			self.tEventsDone = {}
+			for i, tRewardEnds in pairs(tSavedData.tEventsDone or {}) do
+				self.tEventsDone[i] = {}
+				for j, v in pairs(tRewardEnds) do
+					self.tEventsDone[i][j] = self:BuildDateTable(v-offset, fNow, tNow)
+					self.tEventsDone[i][j].bDone = true
+				end
+			end
+		elseif tSavedData._version == 2 then
+			local a,b --passthrough for :AdjustDateTable
+
+			self.tEventsDone = {}
+			for i, tRewardEnds in pairs(tSavedData.tEventsDone or {}) do
+				self.tEventsDone[i] = {}
+				for j, v in pairs(tRewardEnds) do
+					local bDone = v.bDone
+					self.tEventsDone[i][j],a,b = self:AdjustDateTable(v, a, b)
+					self.tEventsDone[i][j].bDone = (bDone == nil) and true or bDone
+				end
+			end
+
 			self.tInstancesAttending = tSavedData.tInstancesAttending or tSavedData.tEventsAttending or {}
 			self.tWorldBossesAttending = tSavedData.tWorldBossesAttending or {}
 			self:CheckRestoredAttendingInstances()
@@ -156,6 +183,7 @@ function EssenceEventTracker:OnRestore(eType, tSavedData)
 		end
 	end
 end
+
 
 function EssenceEventTracker:OnDocumentReady()
 	if self.xmlDoc == nil or not self.xmlDoc:IsLoaded() then
@@ -968,7 +996,7 @@ function EssenceEventTracker:IsRewardEqual(tRewardA, tRewardB)
 	return true
 end
 
-function EssenceEventTracker:IsDone(rTbl)
+function EssenceEventTracker:IsDone_Rotation(rTbl)
 	local tRewards = GameLib.GetRewardRotation(rTbl.src.nContentId, rTbl.src.bIsVeteran or false)
 	if not tRewards then return false end
 
@@ -978,7 +1006,51 @@ function EssenceEventTracker:IsDone(rTbl)
 		end
 	end
 
-	return false
+	return nil
+end
+
+function EssenceEventTracker:IsDone_Saves(rTbl)
+	local tRewardEnds = self.tEventsDone[rTbl.src.nContentId]
+	if not tRewardEnds then return nil end
+
+	local tEnd = tRewardEnds[rTbl.tReward.nRewardType]
+	if not tEnd then return nil end
+
+	local fEnd = tEnd.nGameTime
+	if not fEnd then return nil end
+
+	if math.abs(fEnd - rTbl.fEndTime) < 60 then
+		return tEnd.bDone
+	else
+		return nil
+	end
+end
+
+function EssenceEventTracker:IsDone(rTbl)
+	local bDone = self:IsDone_Saves(rTbl)
+	if bDone ~= nil then return bDone end
+	
+	local bDone = self:IsDone_Rotation(rTbl)
+	if bDone ~= true then return false end
+	
+	self:MarkAsDone(rTbl)
+	return bDone
+end
+
+function EssenceEventTracker:MarkAsDone(rTbl, bToggle)
+	local cId, rId = rTbl.src.nContentId, rTbl.tReward.nRewardType
+
+	if bToggle and self:IsDone(rTbl) then
+		-- if :IsDone returns true, its guaranteed for a table in tEventsDone to exist.
+		self.tEventsDone[cId][rId].bDone = false
+	else
+		self.tEventsDone[cId] = self.tEventsDone[cId] or {}
+		self.tEventsDone[cId][rId] = self:BuildDateTable(rTbl.fEndTime)
+		self.tEventsDone[cId][rId].bDone = true
+	end
+
+	self:UpdateAll()
+	self:UpdateFeaturedList()
 end
 
 --rTbl only to clear a specific attending. (can leave eType out then)
@@ -1168,6 +1240,17 @@ function EssenceEventTracker:OnGenerateTooltip(wndControl, wndHandler, eType, ar
 end
 
 function EssenceEventTracker:OnEssenceItemClick(wndHandler, wndControl, eMouseButton, bDoubleClick)
+	if not bDoubleClick or wndHandler~=wndControl then return end
+	local rTbl = wndHandler:GetParent():GetData() --Button -> EssenceItem
+	
+	if self:IsAttended(rTbl) then --Mark as Done + Remove Attendance
+		self:MarkAsDone(rTbl)
+		self:ClearAttendings(nil, rTbl)
+	else
+		self:MarkAsDone(rTbl, true)
+		self:CheckForAttendance(rTbl)
+	end
+	self:UpdateAll()
 end
 
 function EssenceEventTracker:OnRewardTabCompletedCheck(wndHandler, wndControl)
