@@ -254,6 +254,7 @@ function ContentQueue:UpdateDisplay()
 end
 
 function ContentQueue:UpdateEnableQueueButtons()
+	if not self.wndMain then return end
 	local tMatch = self.tRunningSettings.tMatch
 	local bSolo = tMatch:CanQueue() == MatchMakingLib.MatchQueueResult.Success
 	local bGroup = tMatch:CanQueueAsGroup() == MatchMakingLib.MatchQueueResult.Success
@@ -283,6 +284,7 @@ function ContentQueue:UpdateEnableQueueButtons()
 end
 
 function ContentQueue:ShowError(str)
+	if not self.wndMain then return end
 	self.wndMain:FindChild("WarningWindow:Label"):SetText(str)
 	self.wndMain:FindChild("WarningWindow"):Show(true, true)
 	
@@ -291,6 +293,7 @@ function ContentQueue:ShowError(str)
 end
 
 function ContentQueue:OnErrorTimer()
+	if not self.wndMain then return end
 	if self.timerErrorDisplay then self.timerErrorDisplay:Stop() end
 	self.timerErrorDisplay = nil
 	
