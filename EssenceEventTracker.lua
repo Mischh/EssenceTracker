@@ -1265,6 +1265,24 @@ function EssenceEventTracker:OnRewardTabCompletedUncheck(wndHandler, wndControl)
 	-- self:MarkAsDone(rTbl, true) doesnt exist anymore
 end
 
+function EssenceEventTracker:EssenceItemMouseExit(wndHandler, wndControl)
+	if wndHandler == wndControl then
+		wndHandler:FindChild("QueueButton"):Show(false)
+	end
+end
+
+function EssenceEventTracker:EssenceItemMouseEnter(wndHandler, wndControl)
+	if wndHandler == wndControl then
+		wndHandler:FindChild("QueueButton"):Show(true)
+	end
+end
+
+function EssenceEventTracker:OnQueueButtonClick(wndHandler, wndControl, eMouseButton, bDoubleClick)
+	local rTbl = wndHandler:GetParent():GetParent():GetData()
+	
+	Event_FireGenericEvent("ContentQueueStart", rTbl.src.nContentId, self:GetTitle(rTbl.src))
+end
+
 ---------------------------------------------------------------------------------------------------
 -- Helpers
 ---------------------------------------------------------------------------------------------------

@@ -34,6 +34,11 @@
             <Control Class="MLWindow" LAnchorPoint="0" LAnchorOffset="2" TAnchorPoint="0" TAnchorOffset="3" RAnchorPoint="0" RAnchorOffset="45" BAnchorPoint="1" BAnchorOffset="0" RelativeToClient="1" Font="CRB_InterfaceMedium_B" Text="" Template="Default" TooltipType="OnCursor" Name="TimeText" BGColor="ffffffff" TextColor="ffffffff" TooltipColor="" TextId="" DT_VCENTER="1" IgnoreMouse="1"/>
             <Control Class="MLWindow" LAnchorPoint="0" LAnchorOffset="45" TAnchorPoint="0" TAnchorOffset="3" RAnchorPoint="1" RAnchorOffset="-24" BAnchorPoint="1" BAnchorOffset="0" RelativeToClient="1" Font="CRB_InterfaceMedium_B" Text="" Template="Default" TooltipType="OnCursor" Name="TitleText" BGColor="ffffffff" TextColor="ffffffff" TooltipColor="" TextId="" DT_VCENTER="1" IgnoreMouse="1"/>
             <Event Name="ButtonSignal" Function="OnEssenceItemClick"/>
+            <Control Class="Button" Base="CRB_BreakoutSprites:btn_BreakoutStun_Down" Font="CRB_ButtonHeader" ButtonType="PushButton" RadioGroup="" LAnchorPoint="1" LAnchorOffset="-36" TAnchorPoint="0" TAnchorOffset="-7" RAnchorPoint="1" RAnchorOffset="0" BAnchorPoint="1" BAnchorOffset="3" DT_VCENTER="1" DT_CENTER="1" BGColor="UI_BtnBGDefault" TextColor="BrightLightBlue" NormalTextColor="UI_BtnTextBlueNormal" PressedTextColor="UI_BtnTextBluePressed" FlybyTextColor="UI_BtnTextBlueFlyby" PressedFlybyTextColor="UI_BtnTextBluePressedFlyby" DisabledTextColor="UI_BtnTextBlueDisabled" TooltipType="OnCursor" Name="QueueButton" TooltipColor="" FocusedTextColor="ffffffff" Text="Q" TextId="" Tooltip="" TooltipId="Matchmaker_QueueLabel" Visible="0">
+                <Event Name="ButtonSignal" Function="OnQueueButtonClick"/>
+            </Control>
+            <Event Name="MouseEnter" Function="EssenceItemMouseEnter"/>
+            <Event Name="MouseExit" Function="EssenceItemMouseExit"/>
         </Control>
         <Event Name="MouseEnter" Function="OnQuestItemMouseEnter"/>
         <Event Name="MouseExit" Function="OnQuestItemMouseExit"/>
