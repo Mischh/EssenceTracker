@@ -1278,18 +1278,6 @@ function EssenceEventTracker:OnEssenceItemClick(wndHandler, wndControl, eMouseBu
 	self:UpdateAll()
 end
 
-function EssenceEventTracker:OnRewardTabCompletedCheck(wndHandler, wndControl)
-	wndControl:GetParent():FindChild("Shader"):Show(true)
-	local rTbl = wndHandler:GetData()
-	-- self:MarkAsDone(rTbl, true) doesnt exist anymore
-end
-
-function EssenceEventTracker:OnRewardTabCompletedUncheck(wndHandler, wndControl)
-	wndControl:GetParent():FindChild("Shader"):Show(false)
-	local rTbl = wndHandler:GetData()
-	-- self:MarkAsDone(rTbl, true) doesnt exist anymore
-end
-
 function EssenceEventTracker:EssenceItemMouseExit(wndHandler, wndControl)
 	if wndHandler == wndControl then
 		wndHandler:FindChild("QueueButton"):Show(false)
