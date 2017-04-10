@@ -1285,7 +1285,8 @@ function EssenceEventTracker:EssenceItemMouseExit(wndHandler, wndControl)
 end
 
 function EssenceEventTracker:EssenceItemMouseEnter(wndHandler, wndControl)
-	if wndHandler == wndControl then
+	local rTbl = wndHandler:GetParent():GetData()
+	if wndHandler == wndControl and ktContentTypeToAttendedEvent[rTbl.src.nContentType] == keAttendedEvents.Instance then
 		wndHandler:FindChild("QueueButton"):Show(true)
 	end
 end
