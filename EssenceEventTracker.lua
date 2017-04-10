@@ -283,11 +283,19 @@ function EssenceEventTracker:OnLoadForm(xml, strName, wndParent, tHandler)
 	if strName == "MatchMakerForm" then
 		self.addonMatchMaker = tHandler
 		
+		self:Hook(self.addonMatchMaker, "BuildFeaturedControl", "BuildFeaturedControlHook")
 		self:SilentPostHook(self.addonMatchMaker, "BuildRewardsList", "BuildRewardsListHook")
 		self:SilentPostHook(self.addonMatchMaker, "HelperCreateFeaturedSort", "HelperCreateFeaturedSortHook")
 		self:RawHook(self.addonMatchMaker, "GetSortedRewardList", "GetSortedRewardListHook")
 		self:Unhook(Apollo, "LoadForm")
 	end
+end
+
+function EssenceEventTracker:BuildFeaturedControlHook(addonMatchMaker, wndParent, tRewardListEntry)
+	local rTbl = self:GetRotationForFeaturedReward(tRewardListEntry)
+	if not rTbl then return end
+	local bDone = self:IsDone(rTbl)
+	tRewardListEntry.tRewardInfo.bGranted = bDone
 end
 
 function EssenceEventTracker:BuildRewardsListHook(tRet, ref, tRewardRotation)
