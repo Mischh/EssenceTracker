@@ -1063,9 +1063,6 @@ function EssenceEventTracker:MarkAsDone(rTbl, bToggle)
 		self.tEventsDone[cId][rId] = self:BuildDateTable(rTbl.fEndTime)
 		self.tEventsDone[cId][rId].bDone = true
 	end
-
-	self:UpdateAll()
-	self:UpdateFeaturedList()
 end
 
 function EssenceEventTracker:RemoveDoneMark(rTbl)
@@ -1276,6 +1273,7 @@ function EssenceEventTracker:OnEssenceItemClick(wndHandler, wndControl, eMouseBu
 		self:CheckForAttendance(rTbl)
 	end
 	self:UpdateAll()
+	self:UpdateFeaturedList()
 end
 
 function EssenceEventTracker:EssenceItemMouseExit(wndHandler, wndControl)
