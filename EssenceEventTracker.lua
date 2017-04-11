@@ -1048,7 +1048,10 @@ function EssenceEventTracker:IsDone(rTbl)
 	local bDone = self:IsDone_Rotation(rTbl)
 	if bDone ~= true then return false end
 	
-	self:MarkAsDone(rTbl)
+	if ktContentTypeToAttendedEvent[rTbl.src.nContentType] ~= keAttendedEvents.Instance then
+		self:MarkAsDone(rTbl)
+	end
+	
 	return bDone
 end
 
