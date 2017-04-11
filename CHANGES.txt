@@ -1,12 +1,16 @@
-<p><strong>Release v1.???:</strong></p> 
-  <p>Added:</p> 
-  <ul> 
-    <li></li> 
-  </ul> 
-  <p>Fixes:</p> 
-  <ul> 
-    <li></li> 
-  </ul> 
+<p><strong>Release v1.3:</strong></p> 
+	<p>Added:</p> 
+	<ul> 
+		<li>Attending for WorldBosses (Yellow)</li>
+		<li>The Addon now uses Carbines solution for Completed events, instead of tracking itself.</li>
+		<li>The Tracker got a 'Q'-Button added, to open a new queueing window.</li>
+	</ul> 
+	<p>Fixes:</p> 
+	<ul>
+		<li>Possibily fix the 'invalid order function for sorting'</li>
+		<li>The Tracker no more shows up, while being low-level</li>
+		<li>The Addon is back inside the Content-Finder, including the additional sorting methods.</li>
+	</ul> 
 <p><strong>Release v1.2:</strong></p>
 	<p>Added:</p>
 	<ul>
