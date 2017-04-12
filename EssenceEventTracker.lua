@@ -75,6 +75,7 @@ function EssenceEventTracker:new(o)
 	-- Data
 	o.nTrackerCounting = -1 -- Start at -1 so that loading up with 0 quests will still trigger a resize
 	o.bSetup = false
+	o.bObjectiveTrackerLoaded = false
 	o.tRotations = {}
 	o.tContentIds = {}
 
@@ -213,6 +214,8 @@ function EssenceEventTracker:OnObjectiveTrackerLoaded(wndForm)
 	if not wndForm or not wndForm:IsValid() then
 		return
 	end
+	
+	self.bObjectiveTrackerLoaded = true
 
 	Apollo.RemoveEventHandler("ObjectiveTrackerLoaded", self)
 
@@ -233,7 +236,7 @@ function EssenceEventTracker:Setup()
 		return
 	end
 
-	if self.bSetup then
+	if self.bSetup or not self.bObjectiveTrackerLoaded then
 		return
 	end
 	Apollo.RegisterEventHandler("ToggleShowEssenceTracker", "ToggleShowEssenceTracker", self)
