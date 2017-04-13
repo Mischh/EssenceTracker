@@ -1220,10 +1220,11 @@ function EssenceEventTracker:CheckRestoredAttendingWorldBosses()
 	self.tWorldBossesAttending = {}
 	for cId, tEnd in pairs(temp) do
 		for rId, tDate in pairs(tEnd) do
-			if idTbl[tDate.nEventId] then
+			local nEventId = tDate.nEventId
+			if idTbl[nEventId] then
 				self.tWorldBossesAttending[cId] = self.tWorldBossesAttending[cId] or {}
 				self.tWorldBossesAttending[cId][rId],a,b = self:AdjustDateTable(tDate,a,b)
-				self.tWorldBossesAttending[cId][rId].nEventId = inst.nEventId
+				self.tWorldBossesAttending[cId][rId].nEventId = nEventId
 			end
 		end
 	end
