@@ -207,7 +207,21 @@ function EssenceEventTracker:OnDocumentReady()
 
 	Apollo.RegisterEventHandler("ObjectiveTrackerLoaded", "OnObjectiveTrackerLoaded", self)
 	Event_FireGenericEvent("ObjectiveTracker_RequestParent")
-	self.bIsLoaded = true
+	
+	Apollo.RegisterEventHandler("NextFrame", "OnNextFrame_DelayedLoad", self)
+end
+
+do --this is/was required, because of game crashes. It just delays the whole Setup-Process by two Frames.
+	local bOnce = false
+	function EssenceEventTracker:OnNextFrame_DelayedLoad()
+		if bOnce then
+			Apollo.RemoveEventHandler("NextFrame", self)
+			self.bIsLoaded = true
+			self:Setup()
+		else
+			bOnce = true
+		end
+	end
 end
 
 function EssenceEventTracker:OnObjectiveTrackerLoaded(wndForm)
@@ -231,6 +245,8 @@ function EssenceEventTracker:OnObjectiveTrackerLoaded(wndForm)
 end
 
 function EssenceEventTracker:Setup()
+	if not self.bIsLoaded then return end
+
 	if GameLib.GetPlayerUnit() == nil or GameLib.GetPlayerLevel(true) < 50 then
 		self.wndMain:Show(false)
 		return
