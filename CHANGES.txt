@@ -1,11 +1,8 @@
-<p><strong>Release v1.???:</strong></p> 
-	<p>Added:</p> 
-	<ul> 
-		<li>???</li>
-	</ul> 
+<p><strong>Release v1.3a:</strong></p>
 	<p>Fixes:</p> 
 	<ul>
-		<li>???</li>
+		<li>Fix a possible Error on Login.</li>
+		<li>Fix a Client-Crash produced by this Addon.</li>
 	</ul> 
 <p><strong>Release v1.3:</strong></p> 
 	<p>Added:</p> 
