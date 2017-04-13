@@ -74,6 +74,7 @@ function EssenceEventTracker:new(o)
 
 	-- Data
 	o.nTrackerCounting = -1 -- Start at -1 so that loading up with 0 quests will still trigger a resize
+	o.bIsLoaded = false
 	o.bSetup = false
 	o.bObjectiveTrackerLoaded = false
 	o.tRotations = {}
@@ -107,7 +108,6 @@ function EssenceEventTracker:Init()
 end
 
 function EssenceEventTracker:OnLoad()
-	self.bIsLoaded = false
 	self.xmlDoc = XmlDoc.CreateFromFile("EssenceEventTracker.xml")
 	self.xmlDoc:RegisterCallback("OnDocumentReady", self)
 	Apollo.LoadSprites("EssenceTrackerSprites.xml")
