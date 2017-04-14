@@ -179,8 +179,6 @@ function EssenceEventTracker:OnRestore(eType, tSavedData)
 
 			self.tInstancesAttending = tSavedData.tInstancesAttending or tSavedData.tEventsAttending or {}
 			self.tWorldBossesAttending = tSavedData.tWorldBossesAttending or {}
-			self:CheckRestoredAttendingInstances()
-			self:CheckRestoredAttendingWorldBosses()
 		end
 	end
 end
@@ -218,6 +216,8 @@ do --this is/was required, because of game crashes. It just delays the whole Set
 			Apollo.RemoveEventHandler("NextFrame", self)
 			self.bIsLoaded = true
 			self:Setup()
+			self:CheckRestoredAttendingInstances()
+			self:CheckRestoredAttendingWorldBosses()
 		else
 			bOnce = true
 		end
@@ -1137,9 +1137,6 @@ function EssenceEventTracker:MarkAsAttended(rTbl, ...)
 	else --keAttendedEvents.Daily
 		return
 	end
-
-	self:UpdateAll()
-	self:UpdateFeaturedList()
 end
 
 function EssenceEventTracker:IsAttended(rTbl)
@@ -1169,6 +1166,8 @@ function EssenceEventTracker:CheckForAttendance(rTbl)
 	elseif eType == keAttendedEvents.WorldBoss then
 		self:CheckForWorldBossAttendance(rTbl)
 	end
+	self:UpdateAll()
+	self:UpdateFeaturedList()
 end
 
 function EssenceEventTracker:CheckRestoredAttendingInstances()
