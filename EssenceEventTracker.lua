@@ -197,6 +197,7 @@ function EssenceEventTracker:OnDocumentReady()
 	Apollo.RegisterEventHandler("MatchEntered", "OnMatchEntered", self)
 	Apollo.RegisterEventHandler("MatchLeft", "OnMatchLeft", self)
 	Apollo.RegisterEventHandler("MatchFinished", "OnMatchFinished", self)
+	Apollo.RegisterEventHandler("PlayerChanged", "OnPlayerChanged", self)
 	--worldboss tracking
 	Apollo.RegisterEventHandler("PublicEventStart", "OnPublicEventStart", self)
 	Apollo.RegisterEventHandler("PublicEventLeave", "OnPublicEventLeave", self)
@@ -218,6 +219,7 @@ do --this is/was required, because of game crashes. It just delays the whole Set
 			Apollo.RemoveEventHandler("NextFrame", self)
 			self.bIsLoaded = true
 			self:Setup()
+			self:OnPlayerChanged()
 		else
 			bOnce = true
 		end
@@ -528,18 +530,22 @@ function EssenceEventTracker:IsInterestingRotation(rot)
 	return not(#rot.arRewards < 1 or #rot.arRewards <= 1 and rot.arRewards[1].nRewardType == keRewardTypes.Multiplier and rot.arRewards[1].nMultiplier <= 1)
 end
 
+function EssenceEventTracker:rTblFromRotation(src, reward)
+	return { --usually called 'rTbl'
+		strText = "["..ktShortContentTypes[src.nContentType].."] "..self:GetTitle(src),
+		fEndTime = (reward and reward.nSecondsRemaining or 0) + GameLib.GetGameTime(),
+		src = src,
+		strIcon = reward and reward.strIcon or "",
+		strMult = tostring(reward and reward.nMultiplier and reward.nMultiplier>1 and reward.nMultiplier or ""),
+		tReward = reward,
+	}
+end
+
 function EssenceEventTracker:BuildRotationTable( rot )
 	local redo = false
 	for _, reward in ipairs(rot.arRewards) do
 		if reward.nRewardType == keRewardTypes.Addition or reward.nRewardType == keRewardTypes.Multiplier and reward.nMultiplier > 1 then
-			local rTbl = { --usually called 'rTbl'
-				strText = "["..ktShortContentTypes[rot.nContentType].."] "..self:GetTitle(rot),
-				fEndTime = (reward and reward.nSecondsRemaining or 0) + GameLib.GetGameTime(),
-				src = rot,
-				strIcon = reward and reward.strIcon or "",
-				strMult = tostring(reward and reward.nMultiplier and reward.nMultiplier>1 and reward.nMultiplier or ""),
-				tReward = reward,
-			}
+			local rTbl = self:rTblFromRotation(rot, reward)
 			table.insert(self.tRotations, rTbl)
 			self.tContentIds[rot.nContentId] = self.tContentIds[rot.nContentId] or {}
 			self.tContentIds[rot.nContentId][reward.nRewardType] = rTbl
@@ -941,6 +947,29 @@ do
 			end
 		end
 	end
+	
+	function EssenceEventTracker:OnPlayerChanged()
+		if not self.bSetup then return end --prevent calling GameLib.GetRewardRotations() previous to being allowed.
+		
+		for idx, nContentType in pairs(GameLib.CodeEnumRewardRotationContentType) do
+			GameLib.RequestRewardUpdate(nContentType)
+		end
+		
+		--go through all rewards for instances, tick of those without a done-flag.
+		
+		local arRewardRotations = GameLib.GetRewardRotations()
+		for _, tContent in ipairs(arRewardRotations or {}) do
+			if ktContentTypeToAttendedEvent[tContent.nContentType] == keAttendedEvents.Instance then
+				for i, tReward in pairs(tContent.arRewards) do
+					local rTbl = self:rTblFromRotation(tContent, tReward)
+					if tReward.bGranted and self:IsDone_Saves(rTbl) == nil then
+						self:MarkAsDone(rTbl)
+					end
+				end
+			end
+		end
+		self:UpdateAll()
+	end
 end
 
 do --worldbosses
@@ -1066,13 +1095,14 @@ function EssenceEventTracker:IsDone(rTbl)
 		return false
 	end
 	
-	local bDone = self:IsDone_Rotation(rTbl)
+	bDone = self:IsDone_Rotation(rTbl)
 	if bDone ~= true then return false end
 	
-	if ktContentTypeToAttendedEvent[rTbl.src.nContentType] ~= keAttendedEvents.Instance then
-		self:MarkAsDone(rTbl)
+	if ktContentTypeToAttendedEvent[rTbl.src.nContentType] == keAttendedEvents.Instance then
+		return false
 	end
 	
+	self:MarkAsDone(rTbl)
 	return bDone
 end
 
