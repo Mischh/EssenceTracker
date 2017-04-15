@@ -30,6 +30,12 @@ local keAttendedEvents = {
 	WorldBoss = 2,
 	Daily = 3,
 }
+local ktEssenceRewardTypes = {
+	[AccountItemLib.CodeEnumAccountCurrency.PurpleEssence] = keRewardTypes.Addition,
+	[AccountItemLib.CodeEnumAccountCurrency.BlueEssence] = keRewardTypes.Multiplier,
+	[AccountItemLib.CodeEnumAccountCurrency.RedEssence] = keRewardTypes.Multiplier,
+	[AccountItemLib.CodeEnumAccountCurrency.GreenEssence] = keRewardTypes.Multiplier,
+}
 local ktContentTypeToAttendedEvent = {
 	[GameLib.CodeEnumRewardRotationContentType.Dungeon] = keAttendedEvents.Instance,
 	[GameLib.CodeEnumRewardRotationContentType.DungeonNormal] = keAttendedEvents.Instance,
@@ -56,9 +62,6 @@ local ktMatchTypeNames = {
 	[MatchMakingLib.MatchType.ScaledPrimeLevelExpedition] = Apollo.GetString("MatchMaker_PrimeLevelExpedition"),
 	[MatchMakingLib.MatchType.ScaledPrimeLevelAdventure] = Apollo.GetString("MatchMaker_PrimeLevelAdventure"),
 }
-
---Interesting:
--- GameLib.GetWorldPrimeLevel
 local kstrColors = {
 	kstrRed 	= "ffff4c4c",
 	kstrGreen 	= "ff2fdc02",
@@ -191,7 +194,6 @@ function EssenceEventTracker:OnDocumentReady()
 	end
 
 	--instance tracking
-	Apollo.RegisterEventHandler("ChannelUpdate_Loot", "OnItemGained", self)
 	Apollo.RegisterEventHandler("MatchEntered", "OnMatchEntered", self)
 	Apollo.RegisterEventHandler("MatchLeft", "OnMatchLeft", self)
 	Apollo.RegisterEventHandler("MatchFinished", "OnMatchFinished", self)
@@ -200,6 +202,7 @@ function EssenceEventTracker:OnDocumentReady()
 	Apollo.RegisterEventHandler("PublicEventLeave", "OnPublicEventLeave", self)
 	Apollo.RegisterEventHandler("PublicEventEnd", "OnPublicEventEnd", self)
 	--general stuff
+	Apollo.RegisterEventHandler("ChannelUpdate_Loot", "OnItemGained", self)
 	Apollo.RegisterEventHandler("PlayerLevelChange", "OnPlayerLevelChange", self)
 	Apollo.RegisterEventHandler("CharacterCreated", "OnCharacterCreated", self)
 
@@ -759,21 +762,16 @@ function EssenceEventTracker:OnCharacterCreated()
 	self:Setup()
 end
 
-do
-	local validCurrencies = {
-		[AccountItemLib.CodeEnumAccountCurrency.PurpleEssence] = 1,
-		[AccountItemLib.CodeEnumAccountCurrency.BlueEssence] = 2,
-		[AccountItemLib.CodeEnumAccountCurrency.RedEssence] = 2,
-		[AccountItemLib.CodeEnumAccountCurrency.GreenEssence] = 2,
-	}
-	function EssenceEventTracker:OnItemGained(type, args)
-		if type == GameLib.ChannelUpdateLootType.Currency and args.monNew then
-			if validCurrencies[args.monNew:GetAccountCurrencyType()] then
-				self:GainedEssence(args.monNew)
-			end
+function EssenceEventTracker:OnItemGained(type, args)
+	if type == GameLib.ChannelUpdateLootType.Currency and args.monNew then
+		if ktEssenceRewardTypes[args.monNew:GetAccountCurrencyType()] then
+			self:UpdateAll()
+			self:UpdateFeaturedList()
 		end
 	end
+end
 
+do
 	local instances = {
 		[13] = {--"Stormtalon's Lair",
 			parentZoneId = nil,	id = 19,	nContentId = 12,	nContentType = 1,	nBase = 65,
@@ -912,12 +910,6 @@ do
 		-- self:UpdateAll() --included in above
 		-- self:UpdateFeaturedList()
 	end
-
-	function EssenceEventTracker:GainedEssence(tMoney)
-		self:UpdateAll()
-		self:UpdateFeaturedList()
-	end
-
 
 	function EssenceEventTracker:CheckVeteran(bVet)
 		local tInstanceSettingsInfo = GameLib.GetInstanceSettings()
