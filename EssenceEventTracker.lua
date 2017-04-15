@@ -999,12 +999,22 @@ do --worldbosses
 
 	function EssenceEventTracker:CheckForWorldBossAttendance(rTbl)
 		local events = PublicEvent and PublicEvent.GetActiveEvents()
-		for i, tEvent in ipairs(events) do
-			local eId = tEvent:GetId()
-			local cId = eventIdToContentId[eId]
-			if rTbl.src.nContentId == cId then
-				self:MarkAsAttended(rTbl, eId)
-				break;
+		if rTbl then
+			for i, tEvent in ipairs(events) do
+				local eId = tEvent:GetId()
+				local cId = eventIdToContentId[eId]
+				if rTbl.src.nContentId == cId then
+					self:MarkAsAttended(rTbl, eId)
+					break;
+				end
+			end
+		else
+			for i, tEvent in ipairs(events) do
+				local eId = tEvent:GetId()
+				local cId = eventIdToContentId[eId]
+				for _, rTbl in pairs(cId and self.tContentIds[cId] or {}) do
+					self:MarkAsAttended(rTbl, eId)
+				end
 			end
 		end
 	end
@@ -1208,25 +1218,10 @@ function EssenceEventTracker:CheckRestoredAttendingWorldBosses()
 	else
 		self.CheckRestoredAttendingWorldBossesTimer = self.CheckRestoredAttendingWorldBossesTimer and self.CheckRestoredAttendingInstancesTimer:Stop() or nil
 	end
-
-	local idTbl = {}
-	for i, tEvent in ipairs(events) do
-		idTbl[tEvent:GetId()] = true
-	end
-
-	if not self.tWorldBossesAttending or not next(self.tWorldBossesAttending) then return end
-	local temp,a,b = self.tWorldBossesAttending,nil,nil --a,b just passthrough for AdjustDateTable
+	
+	--basically we just want to wait till 'events' is available, to then trigger this updating process:
 	self.tWorldBossesAttending = {}
-	for cId, tEnd in pairs(temp) do
-		for rId, tDate in pairs(tEnd) do
-			local nEventId = tDate.nEventId
-			if idTbl[nEventId] then
-				self.tWorldBossesAttending[cId] = self.tWorldBossesAttending[cId] or {}
-				self.tWorldBossesAttending[cId][rId],a,b = self:AdjustDateTable(tDate,a,b)
-				self.tWorldBossesAttending[cId][rId].nEventId = nEventId
-			end
-		end
-	end
+	self:CheckForWorldBossAttendance(nil)
 
 	self:UpdateAll()
 	self:UpdateFeaturedList()
