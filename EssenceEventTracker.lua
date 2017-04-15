@@ -39,6 +39,36 @@ local ktContentTypeToAttendedEvent = {
 	[GameLib.CodeEnumRewardRotationContentType.PeriodicQuest] = keAttendedEvents.Daily,
 	[GameLib.CodeEnumRewardRotationContentType.None] = nil, --just to be complete.
 }
+local ktContentTypeTimes = {
+	[GameLib.CodeEnumRewardRotationContentType.Dungeon] = {
+		[keRewardTypes.Multiplier] = 2 * 3600, --2 hrs
+		[keRewardTypes.Addition] = 4 * 86400, --4 days
+	},
+	[GameLib.CodeEnumRewardRotationContentType.DungeonNormal] = {
+		[keRewardTypes.Multiplier] = 0,
+		[keRewardTypes.Addition] = 1 * 86400, --1 day
+	},
+	[GameLib.CodeEnumRewardRotationContentType.Expedition] = {
+		[keRewardTypes.Multiplier] = 1 * 3600, --1 h
+		[keRewardTypes.Addition] = 4 * 86400, --4 days
+	},
+	[GameLib.CodeEnumRewardRotationContentType.PvP] = {
+		[keRewardTypes.Multiplier] = 2 * 3600, --2 hrs
+		[keRewardTypes.Addition] = 4 * 86400, --4 days
+	},
+	[GameLib.CodeEnumRewardRotationContentType.WorldBoss] = {
+		[keRewardTypes.Multiplier] = 1 * 86400, --1 day
+		[keRewardTypes.Addition] = 4 * 86400, --4 days
+	},
+	[GameLib.CodeEnumRewardRotationContentType.PeriodicQuest] = {
+		[keRewardTypes.Multiplier] = 1 * 86400, --1 day
+		[keRewardTypes.Addition] = 0,
+	},
+	[GameLib.CodeEnumRewardRotationContentType.None] = {
+		[keRewardTypes.Multiplier] = 0,
+		[keRewardTypes.Addition] = 0,
+	},
+}
 local ktMatchTypeNames = {
 	[MatchMakingLib.MatchType.Shiphand] 		= Apollo.GetString("MatchMaker_Shiphands"),
 	[MatchMakingLib.MatchType.Adventure] 		= Apollo.GetString("MatchMaker_Adventures"),
@@ -912,7 +942,6 @@ do
 		self:UpdateFeaturedList()
 	end
 
-
 	function EssenceEventTracker:CheckVeteran(bVet)
 		local tInstanceSettingsInfo = GameLib.GetInstanceSettings()
 		if bVet then
@@ -950,7 +979,8 @@ do
 			if ktContentTypeToAttendedEvent[tContent.nContentType] == keAttendedEvents.Instance then
 				for i, tReward in pairs(tContent.arRewards) do
 					local rTbl = self:rTblFromRotation(tContent, tReward)
-					if tReward.bGranted and self:IsDone_Saves(rTbl) == nil then
+					local nMaxTime = ktContentTypeTimes[rTbl.src.nContentType][rTbl.tReward.nRewardType] or 0
+					if tReward.bGranted and self:IsDone_Saves(rTbl) == nil and nMaxTime - rTbl.tReward.nSecondsRemaining > 30 then
 						self:MarkAsDone(rTbl)
 					end
 				end
