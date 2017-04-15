@@ -1,3 +1,9 @@
+<p><strong>Release v1.3b:</strong></p>
+	<p>Fixes:</p> 
+	<ul> 
+		<li>WorldBoss yellow tags now also come up on login/reload.</li>
+		<li>Fix problems with instances being immediatly marked as done.</li>
+	</ul>
 <p><strong>Release v1.3a:</strong></p>
 	<p>Fixes:</p> 
 	<ul>
