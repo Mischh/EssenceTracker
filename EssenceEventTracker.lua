@@ -966,12 +966,16 @@ do
 	function EssenceEventTracker:OnPlayerChanged()
 		if not self.bSetup then return end --prevent calling GameLib.GetRewardRotations() previous to being allowed.
 		
+		--i know all of this is REALLY weird, but I'm really fed up with these problems..
 		for idx, nContentType in pairs(GameLib.CodeEnumRewardRotationContentType) do
 			GameLib.RequestRewardUpdate(nContentType)
 		end
+		local arRewardRotations = GameLib.GetRewardRotations()
 		
-		--go through all rewards for instances, tick of those without a done-flag.
-		
+		self.timerAfterPlayerChanged = ApolloTimer.Create(2, false, "AfterPlayerChanged", self)
+	end
+	
+	function EssenceEventTracker:AfterPlayerChanged()
 		local arRewardRotations = GameLib.GetRewardRotations()
 		for _, tContent in ipairs(arRewardRotations or {}) do
 			if ktContentTypeToAttendedEvent[tContent.nContentType] == keAttendedEvents.Instance then
@@ -1124,15 +1128,19 @@ function EssenceEventTracker:IsDone(rTbl)
 	bDone = self:IsDone_Rotation(rTbl)
 	if bDone ~= true then return false end
 	
+	local nMaxTime = ktContentTypeTimes[rTbl.src.nContentType][rTbl.tReward.nRewardType] or 0
+	
 	if ktContentTypeToAttendedEvent[rTbl.src.nContentType] == keAttendedEvents.Instance then
 		return false
+	elseif nMaxTime - rTbl.tReward.nSecondsRemaining < 30 then --do not believe this.
+		self:MarkAsDone(rTbl, nil, true)
 	end
 	
 	self:MarkAsDone(rTbl)
 	return bDone
 end
 
-function EssenceEventTracker:MarkAsDone(rTbl, bToggle)
+function EssenceEventTracker:MarkAsDone(rTbl, bToggle, bInverse) --bInverse = Mark as 'Not Done', bToggle is priorized
 	local cId, rId = rTbl.src.nContentId, rTbl.tReward.nRewardType
 
 	if bToggle and self:IsDone(rTbl) then
@@ -1141,7 +1149,7 @@ function EssenceEventTracker:MarkAsDone(rTbl, bToggle)
 	else
 		self.tEventsDone[cId] = self.tEventsDone[cId] or {}
 		self.tEventsDone[cId][rId] = self:BuildDateTable(rTbl.fEndTime)
-		self.tEventsDone[cId][rId].bDone = true
+		self.tEventsDone[cId][rId].bDone = bInverse and false or true
 	end
 end
 
