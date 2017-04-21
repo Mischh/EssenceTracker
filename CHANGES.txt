@@ -1,3 +1,8 @@
+<p><strong>Release v1.3c:</strong></p>
+	<p>Fixes:</p> 
+	<ul> 
+		<li>More fixes for events being immediatly marked as done.</li>
+	</ul>
 <p><strong>Release v1.3b:</strong></p>
 	<p>Fixes:</p> 
 	<ul> 
