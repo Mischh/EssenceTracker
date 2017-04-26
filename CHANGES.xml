@@ -1,0 +1,67 @@
+<p><strong>Release v1.3d:</strong></p>
+	<p>Added:</p>
+	<ul>
+		<li>Queue: Allow to pick Prime levels up to your own maximum, not limited by your group.</li>
+	</ul>
+	<p>Fixes:</p>
+	<ul>
+		<li>The Queue-UI should stay open, whenever Queueing failed. ("unable to queue at this time.")</li>
+		<li>Modify a Fix introducing weird problems in other Addons.</li>
+	</ul>
+<p><strong>Release v1.3c:</strong></p>
+	<p>Fixes:</p>
+	<ul>
+		<li>More fixes for events being immediatly marked as done.</li>
+	</ul>
+<p><strong>Release v1.3b:</strong></p>
+	<p>Fixes:</p>
+	<ul>
+		<li>WorldBoss yellow tags now also come up on login/reload.</li>
+		<li>Fix problems with instances being immediatly marked as done.</li>
+	</ul>
+<p><strong>Release v1.3a:</strong></p>
+	<p>Fixes:</p>
+	<ul>
+		<li>Fix a possible Error on Login.</li>
+		<li>Fix a Client-Crash produced by this Addon.</li>
+	</ul>
+<p><strong>Release v1.3:</strong></p>
+	<p>Added:</p>
+	<ul>
+		<li>Attending for WorldBosses (Yellow)</li>
+		<li>The Addon now uses Carbines solution for Completed events, instead of tracking itself.</li>
+		<li>The Tracker got a 'Q'-Button added, to open a new queueing window.</li>
+	</ul>
+	<p>Fixes:</p>
+	<ul>
+		<li>Possibily fix the 'invalid order function for sorting'</li>
+		<li>The Tracker no more shows up, while being low-level</li>
+		<li>The Addon is back inside the Content-Finder, including the additional sorting methods.</li>
+	</ul>
+<p><strong>Release v1.2:</strong></p>
+	<p>Added:</p>
+	<ul>
+		<li>Objective Tracker: Completed Events can now be collapsed.</li>
+		<li>Objective Tracker: Entering the respective Instance marks it as done.</li>
+		<li>Objective Tracker: Marking events Yellow, if currently inside the respective instance.</li>
+	</ul>
+<p><strong>Release v1.1:</strong></p>
+	<p>Added:</p>
+	<ul>
+		<li>Overlay inside Content Finder:</li>
+		<ul>
+			<li>Gray overlay for completed Events.</li>
+			<li>Checkbox to toggle done Events.</li>
+			<li>Remember sorting for Content Finder and Objective Tracker.</li>
+			<li>Additional sorting options for multiplier and essence color.</li>
+		</ul>
+	</ul>
+	<p>Fixes:</p>
+	<ul>
+		<li>Purple Essence-Events are now tracked for signature-players aswell.</li>
+	</ul>
+<p><strong>Release v1.0a:</strong></p>
+	<p>Added:</p>
+	<ul>
+		<li>Tooltips for icons.</li>
+	</ul>
