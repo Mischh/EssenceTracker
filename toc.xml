@@ -6,7 +6,7 @@
 
 	<Script Name="EssenceEventTracker.lua"/>
 	<Form Name="EssenceEventTracker.xml"/>
-	
+
 	<Script Name="ContentQueue.lua"/>
 	<Form Name="ContentQueue.xml"/>
 </Addon>

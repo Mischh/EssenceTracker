@@ -1,5 +1,12 @@
 require "Window"
-require "GameLib"
+local Apollo = require "Apollo"
+local GameLib = require "GameLib"
+local MatchMakingLib = require "MatchMakingLib"
+local MatchingGameLib = require "MatchingGameLib"
+local XmlDoc = require "XmlDoc"
+local GroupLib = require "GroupLib"
+local ApolloTimer = require "ApolloTimer"
+local ChatSystemLib = require "ChatSystemLib"
 
 --to initiate a queue: Event_FireGenericEvent("ContentQueueStart", nContentId, strTitle)
 local ContentQueue = {}
@@ -11,7 +18,7 @@ local ktContent; do
 	local dngPrime = MatchMakingLib.MatchType.PrimeLevelDungeon
 	local expPrime = MatchMakingLib.MatchType.PrimeLevelExpedition
 	local battleground = MatchMakingLib.MatchType.RatedBattleground
-	
+
 	ktContent = {
 		[46] = { --Random Normal
 			eMatchType = dngNormal,		bPrime = false,
@@ -73,20 +80,19 @@ local ktContent; do
 	}
 end
 
-
 function ContentQueue:new(o)
     o = o or {}
     setmetatable(o, self)
     self.__index = self
-	
-	o.tSavedQueueSettings = {}
-	
+
+		o.tSavedQueueSettings = {}
+
     return o
 end
 
 function ContentQueue:Init()
 	Apollo.GetAddon("MischhEssenceTracker").ContentQueue = self
-    Apollo.RegisterAddon(self)
+  Apollo.RegisterAddon(self)
 end
 
 function ContentQueue:OnLoad()
@@ -115,9 +121,9 @@ function ContentQueue:OnDocumentReady()
 		Apollo.AddAddonErrorText(self, "Could not load the main window document for some reason.")
 		return
 	end
-	
+
 	Apollo.RegisterEventHandler("ContentQueueStart", "OnSetupRequested", self)
-	
+
 	--Updates
 	Apollo.RegisterEventHandler("Group_Join",							"OnUpdateGroup", self)
 	Apollo.RegisterEventHandler("Group_Left",							"OnUpdateGroup", self)
@@ -174,25 +180,25 @@ function ContentQueue:CreateNew(key, tMatch, tRoles, nPrime, strTitle)
 		self.wndPrimeLeft = self.wndDifficultyLabel:FindChild("LeftButton")
 		self.wndPrimeRight = self.wndDifficultyLabel:FindChild("RightButton")
 	end
-	
+
 	local wndRoleDPSBlock = self.wndMain:FindChild("RoleSelection:DPSBlock")
 	local wndRoleDPS = self.wndMain:FindChild("RoleSelection:DPSBlock:DPS")
 	local wndRoleHealerBlock = self.wndMain:FindChild("RoleSelection:HealerBlock")
 	local wndRoleHealer = self.wndMain:FindChild("RoleSelection:HealerBlock:Healer")
 	local wndRoleTankBlock = self.wndMain:FindChild("RoleSelection:TankBlock")
 	local wndRoleTank = self.wndMain:FindChild("RoleSelection:TankBlock:Tank")
-	
+
 	self.tWndRoles = {
 		[MatchMakingLib.Roles.DPS] = wndRoleDPS,
 		[MatchMakingLib.Roles.Healer] = wndRoleHealer,
 		[MatchMakingLib.Roles.Tank] = wndRoleTank,
 	}
-	
+
 	local tValidRoles = {}
 	for _, eRole in pairs(MatchMakingLib.GetEligibleRoles()) do
 		tValidRoles[eRole] = true
 	end
-	
+
 	wndRoleDPS:SetData(MatchMakingLib.Roles.DPS)
 	if tValidRoles[MatchMakingLib.Roles.DPS] then
 		wndRoleDPS:Enable(true)
@@ -202,7 +208,7 @@ function ContentQueue:CreateNew(key, tMatch, tRoles, nPrime, strTitle)
 		wndRoleDPSBlock:FindChild("RoleIcon"):SetBGColor("UI_AlphaPercent30")
 		wndRoleDPSBlock:FindChild("RoleLabel"):SetTextColor("UI_BtnTextGrayDisabled")
 	end
-	
+
 	wndRoleTank:SetData(MatchMakingLib.Roles.Tank)
 	if tValidRoles[MatchMakingLib.Roles.Tank] then
 		wndRoleTank:Enable(true)
@@ -212,7 +218,7 @@ function ContentQueue:CreateNew(key, tMatch, tRoles, nPrime, strTitle)
 		wndRoleTankBlock:FindChild("RoleIcon"):SetBGColor("UI_AlphaPercent30")
 		wndRoleTankBlock:FindChild("RoleLabel"):SetTextColor("UI_BtnTextGrayDisabled")
 	end
-	
+
 	wndRoleHealer:SetData(MatchMakingLib.Roles.Healer)
 	if tValidRoles[MatchMakingLib.Roles.Healer] then
 		wndRoleHealer:Enable(true)
@@ -287,7 +293,7 @@ function ContentQueue:ShowError(str)
 	if not self.wndMain then return end
 	self.wndMain:FindChild("WarningWindow:Label"):SetText(str)
 	self.wndMain:FindChild("WarningWindow"):Show(true, true)
-	
+
 	if self.timerErrorDisplay then self.timerErrorDisplay:Stop() end
 	self.timerErrorDisplay = ApolloTimer.Create(5, false, "OnErrorTimer", self)
 end
@@ -309,14 +315,14 @@ end
 
 function ContentQueue:SetupByContentId(nContentId, strTitle)
 	if not ktContent[nContentId] then return end
-	
+
 	local tMatch = self:HelperFindMatch(nContentId)
 
 	if not tMatch then return end
-	
+
 	local tSaves = self.tSavedQueueSettings[nContentId]
 	if not tSaves then tSaves = {tRoles = {}, nPrime = 0} end
-	
+
 	self:CreateNew(nContentId, tMatch, tSaves.tRoles, tSaves.nPrime, strTitle)
 end
 
@@ -327,7 +333,7 @@ end
 function ContentQueue:OnSetupRequested(nContentId, strTitle)
 	assert(type(nContentId) == "number")
 	assert(type(strTitle) == "string")
-	
+
 	self:SetupByContentId(nContentId, strTitle)
 end
 
@@ -415,24 +421,25 @@ function ContentQueue:OnToggleCombatRole(wndHandler, wndControl)
 	end
 	local eRole = wndHandler:GetData()
 	local bSet = wndHandler:IsChecked()
-	
+
 	local tNewRoles = {}
 	for role in pairs(self.tRunningSettings.tRoles) do
 		if role ~= eRole then
 			tNewRoles[role] = true
 		end
 	end
-	
+
 	if bSet then
 		tNewRoles[eRole] = true
 	end
-	
+
 	self.tRunningSettings.tRoles = tNewRoles
 end
 
 function ContentQueue:OnCancel()
 	if self.wndMain then
 		self.wndMain:Destroy()
+		self.wndMain = nil
 	end
 end
 
@@ -443,7 +450,7 @@ end
 function ContentQueue:HelperFindMatch(nContentId)
 	local tContent = ktContent[nContentId]
 	if not tContent then return nil end
-	
+
 	if tContent.eMatchType == MatchMakingLib.MatchType.Dungeon then
 		for i, tMatch in ipairs(MatchMakingLib.GetMatchMakingEntries(tContent.eMatchType, tContent.bPrime, true)) do
 			if tMatch:IsRandom() then

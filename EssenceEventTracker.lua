@@ -1,5 +1,13 @@
-require "Window"
-require "GameLib"
+local Window = require "Window"
+local GameLib = require "GameLib"
+local AccountItemLib = require "AccountItemLib"
+local MatchMakingLib = require "MatchMakingLib"
+local Apollo = require "Apollo"
+local XmlDoc = require "XmlDoc"
+local ApolloTimer = require "ApolloTimer"
+local GroupLib = require "GroupLib"
+local PublicEvent = require "PublicEvent"
+
 
 local EssenceEventTracker = {}
 
@@ -137,7 +145,7 @@ end
 
 function EssenceEventTracker:Init()
 	Apollo.GetPackage("Gemini:Hook-1.0").tPackage:Embed(self)
-    Apollo.RegisterAddon(self)
+  Apollo.RegisterAddon(self)
 end
 
 function EssenceEventTracker:OnLoad()
@@ -238,7 +246,7 @@ function EssenceEventTracker:OnDocumentReady()
 
 	Apollo.RegisterEventHandler("ObjectiveTrackerLoaded", "OnObjectiveTrackerLoaded", self)
 	Event_FireGenericEvent("ObjectiveTracker_RequestParent")
-	
+
 	Apollo.RegisterEventHandler("NextFrame", "OnNextFrame_DelayedLoad", self)
 end
 
@@ -262,7 +270,7 @@ function EssenceEventTracker:OnObjectiveTrackerLoaded(wndForm)
 	if not wndForm or not wndForm:IsValid() then
 		return
 	end
-	
+
 	self.bObjectiveTrackerLoaded = true
 
 	Apollo.RemoveEventHandler("ObjectiveTrackerLoaded", self)
@@ -401,7 +409,7 @@ function EssenceEventTracker:AddAdditionalSortOptions()
 
 	local wndSortColor = Apollo.LoadForm(refXmlDoc, strSortOptionForm, wndSortContainer, self.addonMatchMaker)
 	wndSortColor:SetData(keFeaturedSort.Color)
-	wndSortColor:SetText(Apollo.GetString("AccountInventory_Essence").." "..Apollo.GetString("CRB_Color")) --"Essence Color"
+	wndSortColor:SetText(Apollo.GetString("AccountInventory_Essence").." "..Apollo.GetString("CRB_Color"))--"Essence Color"
 
 	local sortContainerChildren = wndSortContainer:GetChildren()
 	local nLeft, nTop, nRight = wndSortDropdown:GetOriginalLocation():GetOffsets()
@@ -555,11 +563,8 @@ end
 ---------------------------------------------------------------------------------------------------
 
 function EssenceEventTracker:IsInterestingRotation(rot)
-	-- rotation = { arRewards = {...}, bIsVeteran = true/false, nContentId = "number", nContentType = Daily/WB/Queues/... , strWorld = "LocalizedName" }
-	-- rotation.arRewards = {monReward = userdata, nMultiplier=1/./nil, nRewardItemType=3/nil, nRewardType=1/2, nSecondsRemaining=0, strIcon = ""}
-		--nRewardType = 1=Additive, 2=Multiplicative
-		--nRewardItemType = 3=Violet, nil=uninteresting?
-	return not(#rot.arRewards < 1 or #rot.arRewards <= 1 and rot.arRewards[1].nRewardType == keRewardTypes.Multiplier and rot.arRewards[1].nMultiplier <= 1)
+	return not(#rot.arRewards < 1 or #rot.arRewards <= 1 and rot.arRewards[1].nRewardType == keRewardTypes.Multiplier
+			and rot.arRewards[1].nMultiplier <= 1)
 end
 
 function EssenceEventTracker:rTblFromRotation(src, reward)
@@ -576,7 +581,8 @@ end
 function EssenceEventTracker:BuildRotationTable( rot )
 	local redo = false
 	for _, reward in ipairs(rot.arRewards) do
-		if reward.nRewardType == keRewardTypes.Addition or reward.nRewardType == keRewardTypes.Multiplier and reward.nMultiplier > 1 then
+		if reward.nRewardType == keRewardTypes.Addition or reward.nRewardType == keRewardTypes.Multiplier
+					and reward.nMultiplier > 1 then
 			local rTbl = self:rTblFromRotation(rot, reward)
 			table.insert(self.tRotations, rTbl)
 			self.tContentIds[rot.nContentId] = self.tContentIds[rot.nContentId] or {}
@@ -608,7 +614,7 @@ end
 
 function EssenceEventTracker:UpdateAll()
 	if not self.bSetup then return end
-	
+
 	self.timerUpdateDelay:Stop()
 	self.tRotations = {}
 	self.tContentIds = {}
@@ -684,17 +690,19 @@ function EssenceEventTracker:RedrawAll()
 			self.wndMain:SetAnchorOffsets(nLeft, nOffset, nRight, nOffset + nBottom - nTop)
 		else
 			-- Resize quests
-			local nAvailableHeight = self.wndContainerAvailable:ArrangeChildrenVert(Window.CodeEnumArrangeOrigin.LeftOrTop, function(wndA, wndB)
-				return self.tCustomSortFunctions[self.eSort](self, wndA:GetData(), wndB:GetData())
-			end)
+			local nAvailableHeight = self.wndContainerAvailable:ArrangeChildrenVert(Window.CodeEnumArrangeOrigin.LeftOrTop,
+				function(wndA, wndB)
+					return self.tCustomSortFunctions[self.eSort](self, wndA:GetData(), wndB:GetData())
+				end)
 			self.wndContainerAvailable:SetAnchorOffsets(0,0,0,nAvailableHeight)
 
 			if self.tMinimized.bDoneRoot then
 				self.wndContainerDone:SetAnchorOffsets(0,0,0,0)
 			else
-				local nDoneHeight = self.wndContainerDone:ArrangeChildrenVert(Window.CodeEnumArrangeOrigin.LeftOrTop, function(wndA, wndB)
-					return self.tCustomSortFunctions[self.eSort](self, wndA:GetData(), wndB:GetData())
-				end)
+				local nDoneHeight = self.wndContainerDone:ArrangeChildrenVert(Window.CodeEnumArrangeOrigin.LeftOrTop,
+					function(wndA, wndB)
+						return self.tCustomSortFunctions[self.eSort](self, wndA:GetData(), wndB:GetData())
+					end)
 				self.wndContainerDone:SetAnchorOffsets(0,0,0,nDoneHeight)
 			end
 
@@ -711,7 +719,8 @@ function EssenceEventTracker:RedrawAll()
 	self.wndMain:FindChild("HeadlineBtn:MinimizeBtn"):SetCheck(self.tMinimized.bRoot)
 	self.wndMain:FindChild("DoneHeadline:DoneHeadlineBtn:MinimizeBtn"):SetCheck(self.tMinimized.bDoneRoot)
 
-	if nStartingHeight ~= self.wndMain:GetHeight() or self.nAvailableCounting ~= nAvailable or self.nDoneCounting ~= nDone or bShow ~= bStartingShown then
+	if nStartingHeight ~= self.wndMain:GetHeight() or self.nAvailableCounting ~= nAvailable
+			or self.nDoneCounting ~= nDone or bShow ~= bStartingShown then
 		local tData =
 		{
 			["strAddon"] = lstrAddon,
@@ -750,7 +759,8 @@ function EssenceEventTracker:DrawRotation(rTbl, nAvailable, nDone)
 	if bDone  then
 		wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorize(rTbl.strText, kstrColors.kstrRed))
 	else
-		wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(self:HelperColorizeIf(rTbl.strText, kstrColors.kstrYellow, self:IsAttended(rTbl)))
+		wndForm:FindChild("ControlBackerBtn:TitleText"):SetText(
+				self:HelperColorizeIf(rTbl.strText, kstrColors.kstrYellow, self:IsAttended(rTbl)))
 	end
 	wndForm:SetData(rTbl)
 
@@ -873,13 +883,15 @@ do
 
 		if #instances[zone.continentId] > 0 then
 			for _, instance in ipairs(instances[zone.continentId]) do
-				if (not instance.parentZoneId or instance.parentZoneId==zone.parentZoneId) and (not instance.id or instance.id==zone.id) then
+				if (not instance.parentZoneId or instance.parentZoneId==zone.parentZoneId)
+						and (not instance.id or instance.id==zone.id) then
 					return instance
 				end
 			end
 		else
 			local instance = instances[zone.continentId]
-			if (not instance.parentZoneId or instance.parentZoneId==zone.parentZoneId) and (not instance.id or instance.id==zone.id) then
+			if (not instance.parentZoneId or instance.parentZoneId==zone.parentZoneId)
+					and (not instance.id or instance.id==zone.id) then
 				return instance
 			end
 		end
@@ -919,7 +931,7 @@ do
 		end
 
 		--check queues
-		for nRewardType, rTbl in pairs(self.tContentIds[46] or {}) do --46 = Random Queue - usually normal dungeon with rewardType 1 (100 purples)
+		for nRewardType, rTbl in pairs(self.tContentIds[46] or {}) do --46 = Random Normal Queue
 			if self:CheckVeteran(rTbl.src.bIsVeteran) and rTbl.src.eMatchType == inst.nContentType then
 				self:MarkAsAttended(rTbl, inst.nContentId)
 			end
@@ -962,19 +974,19 @@ do
 			end
 		end
 	end
-	
+
 	function EssenceEventTracker:OnPlayerChanged()
 		if not self.bSetup then return end --prevent calling GameLib.GetRewardRotations() previous to being allowed.
-		
+
 		--i know all of this is REALLY weird, but I'm really fed up with these problems..
 		for idx, nContentType in pairs(GameLib.CodeEnumRewardRotationContentType) do
 			GameLib.RequestRewardUpdate(nContentType)
 		end
-		local arRewardRotations = GameLib.GetRewardRotations()
-		
+		GameLib.GetRewardRotations()
+
 		self.timerAfterPlayerChanged = ApolloTimer.Create(2, false, "AfterPlayerChanged", self)
 	end
-	
+
 	function EssenceEventTracker:AfterPlayerChanged()
 		local arRewardRotations = GameLib.GetRewardRotations()
 		for _, tContent in ipairs(arRewardRotations or {}) do
@@ -1033,7 +1045,6 @@ do --worldbosses
 		self:UpdateFeaturedList()
 	end
 
-	--tEvent, 1, {arObjectives, arParticipantStats, arPersonalStats, arRewardThresholds, arTeamStats, eRewardTier, eRewardType, nElapsedTime}
 	function EssenceEventTracker:OnPublicEventEnd(tEvent, arg2, arg3)
 		local eId = tEvent:GetId()
 		local cId = eventIdToContentId[eId]
@@ -1061,8 +1072,8 @@ do --worldbosses
 			for i, tEvent in ipairs(events) do
 				local eId = tEvent:GetId()
 				local cId = eventIdToContentId[eId]
-				for _, rTbl in pairs(cId and self.tContentIds[cId] or {}) do
-					self:MarkAsAttended(rTbl, eId)
+				for _, rTbl2 in pairs(cId and self.tContentIds[cId] or {}) do
+					self:MarkAsAttended(rTbl2, eId)
 				end
 			end
 		end
@@ -1124,18 +1135,18 @@ function EssenceEventTracker:IsDone(rTbl)
 		end
 		return false
 	end
-	
+
 	bDone = self:IsDone_Rotation(rTbl)
 	if bDone ~= true then return false end
-	
+
 	local nMaxTime = ktContentTypeTimes[rTbl.src.nContentType][rTbl.tReward.nRewardType] or 0
-	
+
 	if ktContentTypeToAttendedEvent[rTbl.src.nContentType] == keAttendedEvents.Instance then
 		return false
 	elseif nMaxTime - rTbl.tReward.nSecondsRemaining < 30 then --do not believe this.
 		self:MarkAsDone(rTbl, nil, true)
 	end
-	
+
 	self:MarkAsDone(rTbl)
 	return bDone
 end
@@ -1155,7 +1166,7 @@ end
 
 function EssenceEventTracker:RemoveDoneMark(rTbl)
 	local cId, rId = rTbl.src.nContentId, rTbl.tReward.nRewardType
-	
+
 	if not self.tEventsDone[cId] then return end
 	self.tEventsDone[cId][rId] = nil
 	if not next(self.tEventsDone[cId]) then
@@ -1237,10 +1248,12 @@ end
 function EssenceEventTracker:CheckRestoredAttendingInstances()
 	local inst, bFailed = self:GetCurrentInstance()
 	if bFailed then
-		self.CheckRestoredAttendingInstancesTimer = self.CheckRestoredAttendingInstancesTimer or ApolloTimer.Create(0.1, true, "CheckRestoredAttendingInstances", self)
+		self.CheckRestoredAttendingInstancesTimer = (self.CheckRestoredAttendingInstancesTimer
+				or ApolloTimer.Create(0.1, true, "CheckRestoredAttendingInstances", self))
 		return
 	else
-		self.CheckRestoredAttendingInstancesTimer = self.CheckRestoredAttendingInstancesTimer and self.CheckRestoredAttendingInstancesTimer:Stop() or nil
+		self.CheckRestoredAttendingInstancesTimer = (self.CheckRestoredAttendingInstancesTimer
+				and self.CheckRestoredAttendingInstancesTimer:Stop() or nil)
 		if not inst then
 			return self:ClearAttendings(keAttendedEvents.Instance)
 		end
@@ -1267,12 +1280,14 @@ function EssenceEventTracker:CheckRestoredAttendingWorldBosses()
 	local events = PublicEvent and PublicEvent.GetActiveEvents()
 
 	if not events then
-		self.CheckRestoredAttendingWorldBossesTimer = self.CheckRestoredAttendingWorldBossesTimer or ApolloTimer.Create(0.1, true, "CheckRestoredAttendingWorldBosses", self)
+		self.CheckRestoredAttendingWorldBossesTimer = (self.CheckRestoredAttendingWorldBossesTimer
+				or ApolloTimer.Create(0.1, true, "CheckRestoredAttendingWorldBosses", self))
 		return
 	else
-		self.CheckRestoredAttendingWorldBossesTimer = self.CheckRestoredAttendingWorldBossesTimer and self.CheckRestoredAttendingInstancesTimer:Stop() or nil
+		self.CheckRestoredAttendingWorldBossesTimer = (self.CheckRestoredAttendingWorldBossesTimer
+				and self.CheckRestoredAttendingInstancesTimer:Stop() or nil)
 	end
-	
+
 	--basically we just want to wait till 'events' is available, to then trigger this updating process:
 	self.tWorldBossesAttending = {}
 	self:CheckForWorldBossAttendance(nil)
@@ -1337,7 +1352,7 @@ end
 function EssenceEventTracker:OnEssenceItemClick(wndHandler, wndControl, eMouseButton, bDoubleClick)
 	if not bDoubleClick or wndHandler~=wndControl then return end
 	local rTbl = wndHandler:GetParent():GetData() --Button -> EssenceItem
-	
+
 	if self:IsAttended(rTbl) then --Mark as Done + Remove Attendance
 		self:MarkAsDone(rTbl)
 		self:ClearAttendings(nil, rTbl)
@@ -1364,7 +1379,7 @@ end
 
 function EssenceEventTracker:OnQueueButtonClick(wndHandler, wndControl, eMouseButton, bDoubleClick)
 	local rTbl = wndHandler:GetParent():GetParent():GetData()
-	
+
 	Event_FireGenericEvent("ContentQueueStart", rTbl.src.nContentId, self:GetTitle(rTbl.src))
 end
 
@@ -1382,7 +1397,8 @@ do
 	end
 	function EssenceEventTracker:SilentPostHook(object, method, handler)
 		if type(handler) ~= "function" and type(handler) ~= "string" then
-			error(("Usage: SilentPostHook(object, method, handler): 'handler' - expected function or string got %s"):format(type(handler)), 2)
+			error(("Usage: SilentPostHook(object, method, handler): 'handler' - expected function or string got %s"):format(
+						type(handler)), 2)
 		end
 		local f = (type(handler) == "function" and handler or
 					function(...) self[handler](self,...) end)
