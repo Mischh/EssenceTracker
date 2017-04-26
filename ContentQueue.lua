@@ -302,8 +302,8 @@ function ContentQueue:OnErrorTimer()
 	if not self.wndMain then return end
 	if self.timerErrorDisplay then self.timerErrorDisplay:Stop() end
 	self.timerErrorDisplay = nil
-	
-	self.wndMain:FindChild("WarningWindow"):Show(true, false)
+
+	self.wndMain:FindChild("WarningWindow"):Show(false, false)
 end
 
 function ContentQueue:SaveState()
@@ -351,10 +351,49 @@ function ContentQueue:OnLeaveQueue()
 end
 
 ---------------------------------------------------------------------------------------------------
+-- Queue Success Check
+---------------------------------------------------------------------------------------------------
+
+function ContentQueue:StartQueueSuccessCheck()
+	if self.timerQueueSuccess then
+		self.timerQueueSuccess:Stop()
+		self.timerQueueSuccess = nil
+	end
+	self.tRunningSettings.bSuccessCheck = true
+	self.timerQueueSuccess = ApolloTimer.Create(0.5, false, "OnQueueSuccessTimer", self)
+	Apollo.RegisterEventHandler("ChatMessage", "OnChatMessage", self)
+end
+
+function ContentQueue:OnChatMessage(tChatChannel, tMessage)
+	if not tChatChannel or tChatChannel:GetType() ~= ChatSystemLib.ChatChannel_System then return end
+
+	local strMessage = ""
+	for _, tSegment in ipairs(tMessage.arMessageSegments) do
+		strMessage = strMessage .. tSegment.strText
+	end
+	if strMessage ~= Apollo.GetString("MatchingFailure_UnableToQueue") then return end
+	--we failed to queue -> inform the UI, stop the success-timer.
+	Apollo.RemoveEventHandler("ChatMessage", self)
+	self.timerQueueSuccess:Stop()
+	self.timerQueueSuccess = nil
+	self.tRunningSettings.bSuccessCheck = nil
+	self:ShowError(strMessage)
+end
+
+function ContentQueue:OnQueueSuccessTimer()
+	-- we see this as 'passing' scince no error occured in the specified timespan.
+	Apollo.RemoveEventHandler("ChatMessage", self)
+	self.tRunningSettings.bSuccessCheck = nil
+	self.timerQueueSuccess = nil
+	self:OnCancel()
+end
+
+---------------------------------------------------------------------------------------------------
 -- Controls Events
 ---------------------------------------------------------------------------------------------------
 
 function ContentQueue:OnGroupQueue()
+	if self.tRunningSettings.bSuccessCheck then return end -- currently checking the success of another attempt.
 	local tRoles = self.tRunningSettings.tRoles
 	local options = {
 		arRoles = {
@@ -371,11 +410,12 @@ function ContentQueue:OnGroupQueue()
 		self:ShowError(MatchMakingLib.GetMatchQueueResultString(eResult))
 	else
 		self:SaveState()
-		self:OnCancel()
+		self:StartQueueSuccessCheck()
 	end
 end
 
 function ContentQueue:OnSoloQueue()
+	if self.tRunningSettings.bSuccessCheck then return end -- currently checking the success of another attempt.
 	local tRoles = self.tRunningSettings.tRoles
 	local options = {
 		arRoles = {
@@ -392,7 +432,7 @@ function ContentQueue:OnSoloQueue()
 		self:ShowError(MatchMakingLib.GetMatchQueueResultString(eResult))
 	else
 		self:SaveState()
-		self:OnCancel()
+		self:StartQueueSuccessCheck()
 	end
 end
 
