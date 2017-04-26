@@ -15,12 +15,13 @@ local kstrAddon = "EssenceTracker"
 local lstrAddon = "Essence Tracker"
 
 local ktShortContentTypes = {
-	[1] = "Dng",
-	[2] = "Day",
-	[3] = "Exp",
-	[4] = "WB",
-	[5] = "PvP",
-	[6] = "Que",
+	[GameLib.CodeEnumRewardRotationContentType.Dungeon]      		= "Dng",
+	[GameLib.CodeEnumRewardRotationContentType.PeriodicQuest]		= "Day",
+	[GameLib.CodeEnumRewardRotationContentType.Expedition]   		= "Exp",
+	[GameLib.CodeEnumRewardRotationContentType.WorldBoss]    		= "WB",
+	[GameLib.CodeEnumRewardRotationContentType.PvP]          		= "PvP",
+	[GameLib.CodeEnumRewardRotationContentType.DungeonNormal]		= "Que",
+	[GameLib.CodeEnumRewardRotationContentType.None]         		= "None",
 }
 local knExtraSortBaseValue = 100
 local keFeaturedSort = {
