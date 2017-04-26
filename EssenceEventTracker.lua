@@ -338,18 +338,18 @@ function EssenceEventTracker:HookMatchMaker()
 	if not matchmaker then return end --if MatchMaker does not exist, we will never get a valid LoadForm.
 
 	--GeminiHook
-	self:Hook(Apollo, "LoadForm", "OnLoadForm")
+	self:Hook(Apollo, "RegisterEventHandler", "OnRegisterEvent")
 end
 
-function EssenceEventTracker:OnLoadForm(xml, strName, wndParent, tHandler)
-	if strName == "MatchMakerForm" then
+function EssenceEventTracker:OnRegisterEvent(strEvent, strHandler, tHandler)
+	if strEvent == "ToggleGroupFinder" and strHandler == "OnToggleMatchMaker" then
 		self.addonMatchMaker = tHandler
-		
+
 		self:Hook(self.addonMatchMaker, "BuildFeaturedControl", "BuildFeaturedControlHook")
 		self:SilentPostHook(self.addonMatchMaker, "BuildRewardsList", "BuildRewardsListHook")
 		self:SilentPostHook(self.addonMatchMaker, "HelperCreateFeaturedSort", "HelperCreateFeaturedSortHook")
 		self:RawHook(self.addonMatchMaker, "GetSortedRewardList", "GetSortedRewardListHook")
-		self:Unhook(Apollo, "LoadForm")
+		self:Unhook(Apollo, "RegisterEventHandler")
 	end
 end
 
