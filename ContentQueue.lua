@@ -145,29 +145,30 @@ function ContentQueue:CreateNew(key, tMatch, tRoles, nPrime, strTitle)
 
 	local tInfo = tMatch:GetInfo()
 	local bPrime = tMatch:IsVeteran()
-	local nPrimeMax = GameLib.GetPrimeLevelAchieved(tInfo.nGameId)
-	if nPrimeMax>0 and GroupLib.InGroup() then
-		nPrimeMax = GroupLib.GetPrimeLevelAchieved(tInfo.nGameId)
+	local nInitialMax = GameLib.GetPrimeLevelAchieved(tInfo.nGameId)
+	if nInitialMax>0 and GroupLib.AmILeader() then
+		nInitialMax = GroupLib.GetPrimeLevelAchieved(tInfo.nGameId)
 	end
-	local bLockd = not bPrime or nPrimeMax==0
-	
+	local bLockd = not bPrime or nInitialMax==0
+
 	tRoles = tRoles or {}
-	nPrime = math.min(nPrime or 0, nPrimeMax)
-	
+	nPrime = math.min(nPrime or 0, nInitialMax)
+
 	self.tRunningSettings = {
 		key = key,
+		strTitle = strTitle,
 		tMatch = tMatch,
 		tRoles = tRoles,
 		nPrime = nPrime,
 	}
-	
+
 	self.wndMain = Apollo.LoadForm(self.xmlDoc, "QueueConfirm", nil, self)
 	self.wndDifficultyLabel = self.wndMain:FindChild("DifficultyLabel")
 	self.wndGroupQueue = self.wndMain:FindChild("QueueButtons:GroupJoin")
 	self.wndSoloQueue = self.wndMain:FindChild("QueueButtons:SoloQueue")
-	
+
 	self.wndMain:FindChild("Title"):SetText(strTitle or "<strTitle>")
-	
+
 	if bPrime then
 		self.wndDifficultyLabel:SetText(String_GetWeaselString(Apollo.GetString("MatchMaker_Veteran"), tostring(nPrime)))
 	else
@@ -228,46 +229,60 @@ function ContentQueue:CreateNew(key, tMatch, tRoles, nPrime, strTitle)
 		wndRoleHealerBlock:FindChild("RoleIcon"):SetBGColor("UI_AlphaPercent30")
 		wndRoleHealerBlock:FindChild("RoleLabel"):SetTextColor("UI_BtnTextGrayDisabled")
 	end
-	
+
 	self:UpdateDisplay()
 end
 
 function ContentQueue:UpdateDisplay()
 	if not self.wndMain or not self.tRunningSettings then return end
-	
-	local tRoles = self.tRunningSettings.tRoles	
+
+	local tRoles = self.tRunningSettings.tRoles
 	local nPrime = self.tRunningSettings.nPrime
 	local tInfo = self.tRunningSettings.tMatch:GetInfo()
 	local bPrime = self.tRunningSettings.tMatch:IsVeteran()
-	
+
 	local nPrimeMax = GameLib.GetPrimeLevelAchieved(tInfo.nGameId)
-	if nPrimeMax>0 and GroupLib.InGroup() then
-		nPrimeMax = GroupLib.GetPrimeLevelAchieved(tInfo.nGameId)
-	end
 	local bArrows = bPrime and nPrimeMax > 0
-	
+
 	if bArrows then
 		self.wndDifficultyLabel:SetText(String_GetWeaselString(Apollo.GetString("MatchMaker_Veteran"), tostring(nPrime)))
 		self.wndPrimeLeft:Enable(nPrime > 0)
 		self.wndPrimeRight:Enable(nPrime < nPrimeMax)
 	end
-	
+
 	for _, eRole in pairs(MatchMakingLib.GetEligibleRoles()) do
 		self.tWndRoles[eRole]:SetCheck(tRoles[eRole] or false)
 	end
-	
+
 	self:UpdateEnableQueueButtons()
 end
 
 function ContentQueue:UpdateEnableQueueButtons()
 	if not self.wndMain then return end
 	local tMatch = self.tRunningSettings.tMatch
-	local bSolo = tMatch:CanQueue() == MatchMakingLib.MatchQueueResult.Success
-	local bGroup = tMatch:CanQueueAsGroup() == MatchMakingLib.MatchQueueResult.Success
-	
-	local strSoloTip = bSolo and "" or MatchMakingLib.GetMatchQueueResultString(tMatch:CanQueue())
-	local strGroupTip = bGroup and "" or MatchMakingLib.GetMatchQueueResultString(tMatch:CanQueueAsGroup())
-	
+	local tInfo = tMatch:GetInfo()
+	local nPrime = self.tRunningSettings.nPrime
+
+	local eSolo = tMatch:CanQueue()
+	local eGroup = tMatch:CanQueueAsGroup()
+
+	local bSolo = eSolo == MatchMakingLib.MatchQueueResult.Success
+	local bGroup = eGroup == MatchMakingLib.MatchQueueResult.Success
+
+	local strSoloTip = bSolo and "" or MatchMakingLib.GetMatchQueueResultString(eSolo)
+	local strGroupTip = bGroup and "" or MatchMakingLib.GetMatchQueueResultString(eGroup)
+
+	if GroupLib.InGroup() then
+		local nGroupPrime = GroupLib.GetPrimeLevelAchieved(tInfo.nGameId)
+		if not GroupLib.AmILeader() then
+			bGroup = false
+			strGroupTip = String_GetWeaselString(Apollo.GetString("GroupNoPermission"))
+		elseif nGroupPrime < nPrime then
+			bGroup = false
+			local strFixedPattern = Apollo.GetString("MatchMaker_PrimeMaxLevel"):gsub("$%d([nc])", {n = "$1n", c = "$2c"})
+			strGroupTip = String_GetWeaselString(strFixedPattern, self.tRunningSettings.strTitle, nGroupPrime)
+		end
+	end
 	if MatchingGameLib.GetQueueEntry() and not MatchingGameLib.IsFinished() then
 		bSolo = false
 		bGroup = false
@@ -278,11 +293,15 @@ function ContentQueue:UpdateEnableQueueButtons()
 		bGroup = false
 		--strGroupTip = "Cant Queue for this as group?"
 	end
+	if eSolo == MatchMakingLib.MatchQueueResult.NotInGroup then
+		bSolo = false
+		strSoloTip = MatchMakingLib.GetMatchQueueResultString(MatchMakingLib.MatchQueueResult.RequiresFullGroup)
+	end
 	if MatchMakingLib.IsQueuedAsGroupForMatching() then
 		bSolo = false
 		strSoloTip = Apollo.GetString("MatchMaker_CantSoloQueueWhileGrouped")
 	end
-	
+
 	self.wndSoloQueue:Enable(bSolo)
 	self.wndSoloQueue:SetTooltip(strSoloTip)
 	self.wndGroupQueue:Enable(bGroup)
@@ -444,13 +463,10 @@ end
 
 function ContentQueue:OnIncreasePrimeLevel()
 	if not self.tRunningSettings then return end
-	
-	local tInfo = self.tRunningSettings.tMatch:GetInfo()	
+
+	local tInfo = self.tRunningSettings.tMatch:GetInfo()
 	local nPrimeMax = GameLib.GetPrimeLevelAchieved(tInfo.nGameId)
-	if nPrimeMax>0 and GroupLib.InGroup() then
-		nPrimeMax = GroupLib.GetPrimeLevelAchieved(tInfo.nGameId)
-	end
-	
+
 	self.tRunningSettings.nPrime = math.min(nPrimeMax, self.tRunningSettings.nPrime+1)
 	self:UpdateDisplay()
 end
